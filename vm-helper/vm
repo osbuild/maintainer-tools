@@ -1,0 +1,29 @@
+#!/bin/bash
+
+cfgdir="${XDG_CONFIG_HOME:-$HOME/.config}/vmci"
+rundir="${XDG_RUNTIME_DIR:-/tmp}/vmci"
+
+echo "$cfgdir"
+echo "$rundir"
+
+mkdir -p "$rundir"
+
+genisoimage \
+  -input-charset utf-8 \
+  -output $rundir/cloudinit.iso \
+  -volid cidata \
+  -joliet \
+  -rock \
+  -quiet \
+  $cfgdir/user-data \
+  $cfgdir/meta-data
+
+qemu-system-x86_64 \
+  -enable-kvm \
+  -m 2048 \
+  "$1" \
+  -snapshot \
+  -cdrom $rundir/cloudinit.iso \
+  -net nic,model=virtio \
+  -net user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090
+
