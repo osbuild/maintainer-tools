@@ -2,11 +2,13 @@
 
 cfgdir="${XDG_CONFIG_HOME:-$HOME/.config}/vmci"
 rundir="${XDG_RUNTIME_DIR:-/tmp}/vmci"
+datdir="$rundir/vmci"
 
 echo "$cfgdir"
 echo "$rundir"
 
 mkdir -p "$rundir"
+cp -vrL "$cfgdir" "$datdir"
 
 genisoimage \
   -input-charset utf-8 \
@@ -15,8 +17,8 @@ genisoimage \
   -joliet \
   -rock \
   -quiet \
-  $cfgdir/user-data \
-  $cfgdir/meta-data
+  $datdir/user-data \
+  $datdir/meta-data
 
 qemu-system-x86_64 \
   -enable-kvm \
