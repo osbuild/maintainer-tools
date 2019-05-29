@@ -1,9 +1,19 @@
 #cloud-config
-user: gicmo
-password: a
-ssh_pwauth: True
+users:
+  - default
+  - name: gicmo
+    gecos: CK
+    sudo: 'ALL=(ALL) NOPASSWD:ALL'
+    ssh_pwauth: True
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEApQ0yn8aUPRXoJgGZpWXcOjMXjJgmq9KN/tg0iyK9nuR3uRfdiNGTpgKr7DY9HfdP07R09e/uZ8qnLcXUrXYfJj087JNTMHjT1Ifb0KUB9Mzy82RDUFuefds356arhzhW6YS4cOOgY2GmEt2KhftjdHRic/eElZW9I5mA3Oz/uDk= gicmo@nano
+  - name: root
+    gecos: CK
+    ssh_pwauth: True
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEApQ0yn8aUPRXoJgGZpWXcOjMXjJgmq9KN/tg0iyK9nuR3uRfdiNGTpgKr7DY9HfdP07R09e/uZ8qnLcXUrXYfJj087JNTMHjT1Ifb0KUB9Mzy82RDUFuefds356arhzhW6YS4cOOgY2GmEt2KhftjdHRic/eElZW9I5mA3Oz/uDk= gicmo@nano 
 chpasswd:
+  list: |
+    root:r
+    gicmo:a
   expire: False
-sudo: 'ALL=(ALL) NOPASSWD:ALL'
-ssh_authorized_keys:
-  - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEApQ0yn8aUPRXoJgGZpWXcOjMXjJgmq9KN/tg0iyK9nuR3uRfdiNGTpgKr7DY9HfdP07R09e/uZ8qnLcXUrXYfJj087JNTMHjT1Ifb0KUB9Mzy82RDUFuefds356arhzhW6YS4cOOgY2GmEt2KhftjdHRic/eElZW9I5mA3Oz/uDk= gicmo@nano
