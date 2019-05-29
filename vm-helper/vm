@@ -1,12 +1,13 @@
 #!/bin/bash
 
-cfgdir="${XDG_CONFIG_HOME:-$HOME/.config}/vmci"
+cfgdir="${XDG_CONFIG_HOME:-$HOME/.config}/vmci/"
 rundir="${XDG_RUNTIME_DIR:-/tmp}/vmci"
-datdir="$rundir/vmci"
+datdir="$rundir/data"
 
 echo "$cfgdir"
 echo "$rundir"
 
+rm -rf "$rundir"
 mkdir -p "$rundir"
 cp -vrL "$cfgdir" "$datdir"
 
