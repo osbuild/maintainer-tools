@@ -28,5 +28,6 @@ qemu-system-x86_64 \
   -snapshot \
   -cdrom $rundir/cloudinit.iso \
   -net nic,model=virtio \
-  -net user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090
+  -net user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090 \
+  "${@:2}"
 
