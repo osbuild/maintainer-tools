@@ -5,6 +5,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 
 
 def genisoimage(rundir, datdir):
@@ -26,6 +27,13 @@ def main():
     parser = argparse.ArgumentParser(description="Boot virtual machine images")
     parser.add_argument('--memory', default=2048, help='Memory of the machine')
     parser.add_argument('image', type=str, help="The image to boot")
+    parser.set_defaults(architecture='x86_64')
+    subparsers = parser.add_subparsers(help='commands')
+
+    parser_sub = subparsers.add_parser("x64", help='x64 architecture')
+    parser_sub.add_argument('-U', '--uefi', dest="uefi", help='Boot via UEFI', action='store_true', default=False)
+    parser_sub.set_defaults(architecture='x86_64')
+
     argv, extra = parser.parse_known_args()
 
     cfghome = os.getenv("XDG_CONFIG_HOME", default=os.path.expanduser("~/.config"))
@@ -44,9 +52,15 @@ def main():
 
     genisoimage(rundir, datdir)
 
-    arch = "x86_64"
+    arch = argv.architecture
 
-    args = ['qemu-system-x86_64']
+    if arch == "x86_64":
+        args = ['qemu-system-x86_64']
+        if argv.uefi:
+            args += ["-drive", "file=/usr/share/OVMF/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"]
+    else:
+        print("unsupported architecture", file=sys.stderr)
+        sys.exit(1)
 
     if platform.processor() == arch:
         args += ['-enable-kvm']
