@@ -1,33 +1,66 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
-cfgdir="${XDG_CONFIG_HOME:-$HOME/.config}/vmci/"
-rundir="${XDG_RUNTIME_DIR:-/tmp}/vmci"
-datdir="$rundir/data"
+import argparse
+import os
+import platform
+import shutil
+import subprocess
 
-echo "$cfgdir"
-echo "$rundir"
 
-rm -rf "$rundir"
-mkdir -p "$rundir"
-cp -vrL "$cfgdir" "$datdir"
+def genisoimage(rundir, datdir):
+    args = [
+        "genisoimage",
+        "-input-charset", "utf-8",
+        "-output", f"{rundir}/cloudinit.iso",
+        "-volid", "cidata",
+        "-joliet",
+        "-rock",
+        "-quiet",
+        f"{datdir}/user-data",
+        f"{datdir}/meta-data"]
 
-genisoimage \
-  -input-charset utf-8 \
-  -output $rundir/cloudinit.iso \
-  -volid cidata \
-  -joliet \
-  -rock \
-  -quiet \
-  $datdir/user-data \
-  $datdir/meta-data
+    subprocess.run(args)
 
-qemu-system-x86_64 \
-  -enable-kvm \
-  -m 2048 \
-  "$1" \
-  -snapshot \
-  -cdrom $rundir/cloudinit.iso \
-  -net nic,model=virtio \
-  -net user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090 \
-  "${@:2}"
 
+def main():
+    parser = argparse.ArgumentParser(description="Boot virtual machine images")
+    parser.add_argument('--memory', default=2048, help='Memory of the machine')
+    parser.add_argument('image', type=str, help="The image to boot")
+    argv, extra = parser.parse_known_args()
+
+    cfghome = os.getenv("XDG_CONFIG_HOME", default=os.path.expanduser("~/.config"))
+    runtimedir = os.getenv("XDG_RUNTIME_DIR", default="/tmp")
+
+    cfgdir = os.path.join(cfghome, "vmci")
+    rundir = os.path.join(runtimedir, "vmci")
+    datdir = os.path.join(rundir, "data")
+
+    print(f"cfgdir: {cfgdir}")
+    print(f"rundir: {rundir}")
+
+    shutil.rmtree(rundir)
+    os.makedirs(rundir, exist_ok=True)
+    shutil.copytree(cfgdir, datdir)
+
+    genisoimage(rundir, datdir)
+
+    arch = "x86_64"
+
+    args = ['qemu-system-x86_64']
+
+    if platform.processor() == arch:
+        args += ['-enable-kvm']
+
+    args += [
+        "-m", str(argv.memory),
+        "-snapshot",
+        f"-cdrom", f"{rundir}/cloudinit.iso",
+        "-net", "nic,model=virtio",
+        "-net", "user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090",
+    ] + extra + [argv.image]
+
+    subprocess.run(args)
+
+
+if __name__ == "__main__":
+    main()
