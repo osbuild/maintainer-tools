@@ -38,7 +38,7 @@ def main():
     print(f"cfgdir: {cfgdir}")
     print(f"rundir: {rundir}")
 
-    shutil.rmtree(rundir)
+    shutil.rmtree(rundir, ignore_errors=True)
     os.makedirs(rundir, exist_ok=True)
     shutil.copytree(cfgdir, datdir)
 
