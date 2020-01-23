@@ -37,6 +37,9 @@ def main():
                             help='Boot via UEFI and enable SecureBoot')
     parser_sub.set_defaults(architecture='x86_64')
 
+    parser_sub = subparsers.add_parser("aarch64", help='ARM 64 architecture')
+    parser_sub.set_defaults(architecture='aarch64')
+
     argv, extra = parser.parse_known_args()
 
     cfghome = os.getenv("XDG_CONFIG_HOME", default=os.path.expanduser("~/.config"))
@@ -68,6 +71,12 @@ def main():
                      "q35"]
         elif argv.uefi:
             args += ["-drive", "file=/usr/share/OVMF/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"]
+    elif arch == "aarch64":
+        args = ['qemu-system-ppc64',
+                "-M", "virt",
+                "-bios", "/usr/share/edk2/aarch64/QEMU_EFI.fd",
+                "-boot", "efi",
+                "-cpu", "cortex-a57"]
     else:
         print("unsupported architecture", file=sys.stderr)
         sys.exit(1)
