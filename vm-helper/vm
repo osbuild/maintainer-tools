@@ -30,7 +30,8 @@ def main():
     parser.set_defaults(architecture='x86_64')
     subparsers = parser.add_subparsers(help='commands')
 
-    parser_sub = subparsers.add_parser("x64", help='x64 architecture')
+    parser_sub = subparsers.add_parser("x86_64", help='x64 architecture',
+                                       aliases=['x64'])
     parser_sub.add_argument('-U', '--uefi', dest="uefi", action='store_true', default=False,
                             help='Boot via UEFI')
     parser_sub.add_argument('-S', '--secureboot', dest="secureboot", action='store_true', default=False,
@@ -41,6 +42,7 @@ def main():
     parser_sub.set_defaults(architecture='aarch64')
 
     argv, extra = parser.parse_known_args()
+    argv = vars(argv)
 
     cfghome = os.getenv("XDG_CONFIG_HOME", default=os.path.expanduser("~/.config"))
     runtimedir = os.getenv("XDG_RUNTIME_DIR", default="/tmp")
@@ -58,18 +60,18 @@ def main():
 
     genisoimage(rundir, datdir)
 
-    arch = argv.architecture
+    arch = argv["architecture"]
 
     if arch == "x86_64":
         args = ['qemu-system-x86_64']
-        if argv.secureboot:
+        if argv.get("secureboot", False):
             args += ["-drive",
                      "file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on",
                      "-drive",
                      "file=/usr/share/OVMF/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off",
                      "-machine",
                      "q35"]
-        elif argv.uefi:
+        elif argv.get("uefi", False):
             args += ["-drive", "file=/usr/share/OVMF/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"]
     elif arch == "aarch64":
         args = ['qemu-system-ppc64',
@@ -85,12 +87,12 @@ def main():
         args += ['-enable-kvm']
 
     args += [
-        "-m", str(argv.memory),
+        "-m", str(argv["memory"]),
         "-snapshot",
         f"-cdrom", f"{rundir}/cloudinit.iso",
         "-net", "nic,model=virtio",
         "-net", "user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090",
-    ] + extra + [argv.image]
+    ] + extra + [argv["image"]]
 
     subprocess.run(args)
 
