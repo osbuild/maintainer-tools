@@ -26,6 +26,7 @@ def genisoimage(rundir, datdir):
 def main():
     parser = argparse.ArgumentParser(description="Boot virtual machine images")
     parser.add_argument('--memory', default=2048, help='Memory of the machine')
+    parser.add_argument('--persist', default=False, action="store_true")
     parser.add_argument('image', type=str, help="The image to boot")
     parser.set_defaults(architecture='x86_64')
     subparsers = parser.add_subparsers(help='commands')
@@ -86,9 +87,11 @@ def main():
     if platform.processor() == arch:
         args += ['-enable-kvm']
 
+    if not argv["persist"]:
+        args += ["-snapshot"]
+
     args += [
         "-m", str(argv["memory"]),
-        "-snapshot",
         f"-cdrom", f"{rundir}/cloudinit.iso",
         "-net", "nic,model=virtio",
         "-net", "user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090",
