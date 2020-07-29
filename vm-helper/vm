@@ -27,6 +27,7 @@ def main():
     parser = argparse.ArgumentParser(description="Boot virtual machine images")
     parser.add_argument('--memory', default=2048, help='Memory of the machine')
     parser.add_argument('--persist', default=False, action="store_true")
+    parser.add_argument('--verbose', default=False, action="store_true")
     parser.add_argument('image', type=str, help="The image to boot")
     parser.set_defaults(architecture='x86_64')
     subparsers = parser.add_subparsers(help='commands')
@@ -52,8 +53,9 @@ def main():
     rundir = os.path.join(runtimedir, "vmci")
     datdir = os.path.join(rundir, "data")
 
-    print(f"cfgdir: {cfgdir}")
-    print(f"rundir: {rundir}")
+    if argv["verbose"]:
+        print(f"cfgdir: {cfgdir}")
+        print(f"rundir: {rundir}")
 
     shutil.rmtree(rundir, ignore_errors=True)
     os.makedirs(rundir, exist_ok=True)
