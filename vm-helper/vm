@@ -20,7 +20,7 @@ def genisoimage(rundir, datdir):
         f"{datdir}/user-data",
         f"{datdir}/meta-data"]
 
-    subprocess.run(args)
+    subprocess.run(args, check=True)
 
 
 def main():
