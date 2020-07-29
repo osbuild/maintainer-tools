@@ -102,8 +102,9 @@ def main():
     if argv["verbose"]:
         print(" ".join(args))
 
-    subprocess.run(args)
+    res = subprocess.run(args, check=False)
+    return res.returncode
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
