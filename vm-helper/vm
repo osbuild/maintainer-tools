@@ -8,6 +8,10 @@ import subprocess
 import sys
 
 
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
+
 def genisoimage(rundir, datdir):
     args = [
         "genisoimage",
@@ -92,11 +96,27 @@ def main():
     if not argv["persist"]:
         args += ["-snapshot"]
 
+    portfwd = {
+        2222:22,
+        9091:9090
+    }
+
+    fwds = [f"hostfwd=tcp::{h}-:{g}" for h, g in portfwd.items()]
+
+    # create a new mac address based on our machine id
+    with open("/etc/machine-id", "r") as f:
+        data = f.read().strip()
+
+    maclst = ["FE"] + [data[x:x+2] for x in range(-12, -2, 2)]
+    macstr = ":".join(maclst)
+
+    print(f"MAC: {BOLD}{macstr}{RESET}")
+
     args += [
         "-m", str(argv["memory"]),
         f"-cdrom", f"{rundir}/cloudinit.iso",
-        "-net", "nic,model=virtio",
-        "-net", "user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090",
+        "-device", f"virtio-net-pci,netdev=n0,mac={macstr}",
+        "-netdev", "user,id=n0,net=10.0.2.0/24," + ",".join(fwds),
     ] + extra + [argv["image"]]
 
     if argv["verbose"]:
