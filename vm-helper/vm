@@ -99,6 +99,9 @@ def main():
         "-net", "user,hostfwd=tcp::2222-:22,hostfwd=tcp::9091-:9090",
     ] + extra + [argv["image"]]
 
+    if argv["verbose"]:
+        print(" ".join(args))
+
     subprocess.run(args)
 
 
