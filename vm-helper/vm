@@ -125,7 +125,11 @@ def main():
     if argv["verbose"]:
         print(" ".join(args))
 
-    res = subprocess.run(args, check=False)
+    try:
+        res = subprocess.run(args, check=False)
+    except KeyboardInterrupt:
+        print("Aborted")
+
     return res.returncode
 
 
