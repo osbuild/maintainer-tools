@@ -101,6 +101,9 @@ def main():
         9091:9090
     }
 
+    for local, remote in portfwd.items():
+        print(f"port {BOLD}{local}{RESET} → {BOLD}{remote}{RESET}")
+
     fwds = [f"hostfwd=tcp::{h}-:{g}" for h, g in portfwd.items()]
 
     # create a new mac address based on our machine id
