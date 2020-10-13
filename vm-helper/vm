@@ -29,23 +29,23 @@ def genisoimage(rundir, datdir):
 
 def main():
     parser = argparse.ArgumentParser(description="Boot virtual machine images")
-    parser.add_argument('--memory', default=2048, help='Memory of the machine')
-    parser.add_argument('--persist', default=False, action="store_true")
-    parser.add_argument('--verbose', default=False, action="store_true")
-    parser.add_argument('image', type=str, help="The image to boot")
-    parser.set_defaults(architecture='x86_64')
-    subparsers = parser.add_subparsers(help='commands')
+    parser.add_argument("--memory", default=2048, help="Memory of the machine")
+    parser.add_argument("-persist", default=False, action="store_true")
+    parser.add_argument("--verbose", default=False, action="store_true")
+    parser.add_argument("image", type=str, help="The image to boot")
+    parser.set_defaults(architecture="x86_64")
+    subparsers = parser.add_subparsers(help="commands")
 
-    parser_sub = subparsers.add_parser("x86_64", help='x64 architecture',
-                                       aliases=['x64'])
-    parser_sub.add_argument('-U', '--uefi', dest="uefi", action='store_true', default=False,
-                            help='Boot via UEFI')
-    parser_sub.add_argument('-S', '--secureboot', dest="secureboot", action='store_true', default=False,
-                            help='Boot via UEFI and enable SecureBoot')
-    parser_sub.set_defaults(architecture='x86_64')
+    parser_sub = subparsers.add_parser("x86_64", help="x64 architecture",
+                                       aliases=["x64"])
+    parser_sub.add_argument("-U", "--uefi", dest="uefi", action="store_true", default=False,
+                            help="Boot via UEFI")
+    parser_sub.add_argument("-S", "--secureboot", dest="secureboot", action="store_true", default=False,
+                            help="Boot via UEFI and enable SecureBoot")
+    parser_sub.set_defaults(architecture="x86_64")
 
-    parser_sub = subparsers.add_parser("aarch64", help='ARM 64 architecture')
-    parser_sub.set_defaults(architecture='aarch64')
+    parser_sub = subparsers.add_parser("aarch64", help="ARM 64 architecture")
+    parser_sub.set_defaults(architecture="aarch64")
 
     parser_sub = subparsers.add_parser("s390x", help='s390x architecture',
                                        aliases=['s390'])
@@ -78,7 +78,7 @@ def main():
     arch = argv["architecture"]
 
     if arch == "x86_64":
-        args = ['qemu-system-x86_64']
+        args = ["qemu-system-x86_64"]
         if argv.get("secureboot", False):
             args += [
                 "-drive",
@@ -94,7 +94,7 @@ def main():
             ]
     elif arch == "aarch64":
         args = [
-            'qemu-system-aarch64',
+            "qemu-system-aarch64",
             "-M", "virt",
             "-bios", "/usr/share/edk2/aarch64/QEMU_EFI.fd",
             "-boot", "efi",
@@ -109,7 +109,7 @@ def main():
         sys.exit(1)
 
     if platform.processor() == arch:
-        args += ['-enable-kvm']
+        args += ["-enable-kvm"]
 
     if not argv["persist"]:
         args += ["-snapshot"]
