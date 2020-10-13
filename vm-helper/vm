@@ -80,20 +80,26 @@ def main():
     if arch == "x86_64":
         args = ['qemu-system-x86_64']
         if argv.get("secureboot", False):
-            args += ["-drive",
-                     "file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on",
-                     "-drive",
-                     "file=/usr/share/OVMF/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off",
-                     "-machine",
-                     "q35"]
+            args += [
+                "-drive",
+                "file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on",
+                "-drive",
+                "file=/usr/share/OVMF/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off",
+                "-machine",
+                "q35"
+            ]
         elif argv.get("uefi", False):
-            args += ["-drive", "file=/usr/share/OVMF/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"]
+            args += [
+                "-drive", "file=/usr/share/OVMF/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"
+            ]
     elif arch == "aarch64":
-        args = ['qemu-system-aarch64',
-                "-M", "virt",
-                "-bios", "/usr/share/edk2/aarch64/QEMU_EFI.fd",
-                "-boot", "efi",
-                "-cpu", "cortex-a57"]
+        args = [
+            'qemu-system-aarch64',
+            "-M", "virt",
+            "-bios", "/usr/share/edk2/aarch64/QEMU_EFI.fd",
+            "-boot", "efi",
+            "-cpu", "cortex-a57"
+        ]
     elif arch == "s390x":
         args = ['qemu-system-s390x']
     elif arch == "ppc64le":
