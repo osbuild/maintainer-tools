@@ -81,7 +81,7 @@ def main():
         elif argv.get("uefi", False):
             args += ["-drive", "file=/usr/share/OVMF/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"]
     elif arch == "aarch64":
-        args = ['qemu-system-ppc64',
+        args = ['qemu-system-aarch64',
                 "-M", "virt",
                 "-bios", "/usr/share/edk2/aarch64/QEMU_EFI.fd",
                 "-boot", "efi",
