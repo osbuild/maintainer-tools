@@ -117,7 +117,7 @@ def main():
 
     args += [
         "-m", str(argv["memory"]),
-        f"-cdrom", f"{rundir}/cloudinit.iso",
+        "-cdrom", f"{rundir}/cloudinit.iso",
         "-device", f"virtio-net-pci,netdev=n0,mac={macstr}",
         "-netdev", "user,id=n0,net=10.0.2.0/24," + ",".join(fwds),
     ] + extra + [argv["image"]]
