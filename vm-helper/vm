@@ -51,6 +51,10 @@ def main():
                                        aliases=['s390'])
     parser_sub.set_defaults(architecture='s390x')
 
+    parser_sub = subparsers.add_parser("ppc64le", help='PPC 64 LE architecture',
+                                       aliases=['ppc', 'ppc64'])
+    parser_sub.set_defaults(architecture='ppc64le')
+
     argv, extra = parser.parse_known_args()
     argv = vars(argv)
 
@@ -92,6 +96,8 @@ def main():
                 "-cpu", "cortex-a57"]
     elif arch == "s390x":
         args = ['qemu-system-s390x']
+    elif arch == "ppc64le":
+        args = ['qemu-system-ppc64']
     else:
         print("unsupported architecture", file=sys.stderr)
         sys.exit(1)
