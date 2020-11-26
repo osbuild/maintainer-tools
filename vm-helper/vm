@@ -47,6 +47,10 @@ def main():
     parser_sub = subparsers.add_parser("aarch64", help='ARM 64 architecture')
     parser_sub.set_defaults(architecture='aarch64')
 
+    parser_sub = subparsers.add_parser("s390x", help='s390x architecture',
+                                       aliases=['s390'])
+    parser_sub.set_defaults(architecture='s390x')
+
     argv, extra = parser.parse_known_args()
     argv = vars(argv)
 
@@ -86,6 +90,8 @@ def main():
                 "-bios", "/usr/share/edk2/aarch64/QEMU_EFI.fd",
                 "-boot", "efi",
                 "-cpu", "cortex-a57"]
+    elif arch == "s390x":
+        args = ['qemu-system-s390x']
     else:
         print("unsupported architecture", file=sys.stderr)
         sys.exit(1)
