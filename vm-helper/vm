@@ -117,10 +117,11 @@ def main():
 
     args += [
         "-m", str(argv["memory"]),
+        "-drive", "file=%s" % argv["image"],
         "-cdrom", f"{rundir}/cloudinit.iso",
         "-device", f"virtio-net-pci,netdev=n0,mac={macstr}",
         "-netdev", "user,id=n0,net=10.0.2.0/24," + ",".join(fwds),
-    ] + extra + [argv["image"]]
+    ] + extra
 
     if argv["verbose"]:
         print(" ".join(args))
