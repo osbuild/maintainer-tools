@@ -27,6 +27,32 @@ def genisoimage(rundir, datdir):
     subprocess.run(args, check=True)
 
 
+def is_darwin():
+    osid = platform.system()
+    return osid == "Darwin"
+
+
+def machine_id():
+    if is_darwin():
+        args = [
+            "ioreg", "-rd1", "-c", "IOPlatformExpertDevice"
+        ]
+        r = subprocess.run(args, stdout=subprocess.PIPE, check=True)
+        data = r.stdout.decode("utf-8").strip()
+        for l in data.split("\n"):
+            if not "IOPlatformUUID" in l:
+                continue
+            k, v = l.split('" = "', 2)
+            mid = v.rstrip().rstrip('""')
+            return mid
+        raise RuntimeError("Failed to determine machine id")
+    else:
+        with open("/etc/machine-id", "r") as f:
+            mid = f.read().strip()
+
+    return mid
+
+
 def main():
     parser = argparse.ArgumentParser(description="Boot virtual machine images")
     parser.add_argument("--memory", default=2048, help="Memory of the machine")
@@ -125,8 +151,7 @@ def main():
     fwds = [f"hostfwd=tcp::{h}-:{g}" for h, g in portfwd.items()]
 
     # create a new mac address based on our machine id
-    with open("/etc/machine-id", "r") as f:
-        data = f.read().strip()
+    data = machine_id()
 
     maclst = ["FE"] + [data[x:x+2] for x in range(-12, -2, 2)]
     macstr = ":".join(maclst)
