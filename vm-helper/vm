@@ -14,7 +14,7 @@ BOLD = "\033[1m"
 
 def genisoimage(rundir, datdir):
     args = [
-        "genisoimage",
+        "mkisofs",
         "-input-charset", "utf-8",
         "-output", f"{rundir}/cloudinit.iso",
         "-volid", "cidata",
