@@ -134,8 +134,13 @@ def main():
         print("unsupported architecture", file=sys.stderr)
         sys.exit(1)
 
-    if platform.processor() == arch:
-        args += ["-enable-kvm"]
+    if platform.machine() == arch:
+        if is_darwin():
+            args += ["-M", "accel=hvf"]
+        else:
+            args += ['-enable-kvm']
+    else:
+        print("Acceleration: off")
 
     if not argv["persist"]:
         args += ["-snapshot"]
