@@ -17,3 +17,6 @@ chpasswd:
     root:r
     gicmo:a
   expire: False
+growpart:
+  mode: auto
+  devices: ['/']
