@@ -11,24 +11,40 @@ import getpass
 from re import search
 import requests
 
+# FIXME: Somehow these colors don't do what they should yet...
+class fg:
+    BOLD = '\033[1m' # bold
+    OK = '\033[32m' # green
+    WARNING = '\033[33m' # yellow
+    ERROR = '\033[31m' # red
+    RESET = '\033[0m' # reset
+
+def msg_error(body):
+    print(f"{fg.ERROR}{fg.BOLD}Error:{fg.RESET} {body}")
+    sys.exit(1)
+
+def msg_info(body):
+    print(f"{fg.WARNING}{fg.BOLD}Info:{fg.RESET} {body}")
+
+def msg_ok(body):
+    print(f"{fg.OK}{fg.BOLD}OK:{fg.RESET} {body}")
+
 # Check if we are in a git repo, on the right branch and up-to-date
 def sanity_checks():
     is_git = run_command(['git', 'rev-parse', '--is-inside-work-tree'])
     if  is_git != "true":
-        print("Error: This is not a git repository.")
-        sys.exit(1)
+        msg_error("This is not a git repository.")
 
     current_branch = run_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
     if current_branch != "main":
-        print(f"Error: You are not on the 'main' branch but on branch '{current_branch}'.")
-        sys.exit(1)
+        msg_error(f"You are not on the 'main' branch but on branch '{current_branch}'.")
 
     is_clean = run_command(['git', 'status', '--untracked-files=no', '--porcelain'])
     if is_clean != "":
         status = run_command(['git', 'status', '--untracked-files=no', '-s'])
-        print(f"The working directory is not clean.\n"
-               "You have the following unstaged or uncommitted changes:\n"
-               "{status}")
+        msg_info("The working directory is not clean.\n"
+                 "You have the following unstaged or uncommitted changes:\n"
+                 f"{status}")
 
 # Run a shellcommand and return stdout
 def run_command(argv):
@@ -39,12 +55,13 @@ def run_command(argv):
 def step(action, args):
     feedback = input(f"{action} [y/s/N] ")
     if feedback == "y":
-        run_command(args)
+        out = run_command(args)
+        msg_ok (out)
     elif feedback == "s":
-        print("Step skipped.")
+        msg_info("Step skipped.")
         return
     else:
-        print("Release playbook canceled.")
+        msg_info("Release playbook canceled.")
         sys.exit(0)
 
 # Bump the version of the latest git tag by 1
@@ -58,9 +75,9 @@ def guess_remote(repo):
     origin = f"github.com[/:]osbuild/{repo}.git"
     remotes = run_command(['git','remote']).split("\n")
     if len(remotes) > 2:
-        print(f"You have more than two 'git remotes' specified, so guessing the correct one will most likely fail.\n"
-               "Please use the --remote argument to set the correct one.\n"
-               "{remotes}")
+        msg_info("You have more than two 'git remotes' specified, so guessing the correct one will most likely fail.\n"
+                 "Please use the --remote argument to set the correct one.\n"
+                 f"{remotes}")
 
     for remote in remotes:
         remote_url = run_command(['git','remote','get-url',f'{remote}'])
@@ -69,10 +86,9 @@ def guess_remote(repo):
 
 def create_pullrequest(args, repo):
     if args.user is None or args.token is None:
-        print("Error: Missing credentials for GitHub.")
-        sys.exit(1)
+        msg_error("Missing credentials for GitHub.")
 
-    print(f"Creating a pull request on github for user {args.user}")
+    msg_info(f"Creating a pull request on github for user {args.user}")
     url = f'https://api.github.com/repos/osbuild/{repo}/pulls'
     payload = {'head':f'{args.user}:release-{args.version}',
                'base':'main',
@@ -82,9 +98,9 @@ def create_pullrequest(args, repo):
 
     r = requests.post(url, json = payload, auth=(args.user,args.token))
     try:
-        print(f"Pull request successfully created: {r.json()['url']}")
+        msg_ok(f"Pull request successfully created: {r.json()['url']}")
     except:
-        print("Error: Failed to create pull request.")
+        msg_error(f"Failed to create pull request. {r.json()}")
 
 # Execute all steps of the release playbook
 def release_playbook(args, repo):
@@ -116,7 +132,7 @@ def main():
     parser.add_argument("--token", help="Set the github token used to authenticate")
     args = parser.parse_args()
 
-    print(f"Updating branch 'main' to avoid conflicts...")
+    msg_info(f"Updating branch 'main' to avoid conflicts...")
     run_command(['git', 'pull'])
 
     # Run the release playbook
