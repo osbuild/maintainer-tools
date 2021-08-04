@@ -63,7 +63,7 @@ def guess_remote(repo):
 
     for remote in remotes:
         remote_url = run_command(['git','remote','get-url',f'{remote}'])
-        if search(origin, remote_url) is not None:
+        if search(origin, remote_url) is None:
             return remote
 
 # Execute all steps of the release playbook
