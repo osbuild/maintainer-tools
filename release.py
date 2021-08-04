@@ -9,6 +9,7 @@ import subprocess, sys
 import os
 import getpass
 from re import search
+import requests
 
 # Check if we are in a git repo, on the right branch and up-to-date
 def sanity_checks():
@@ -66,6 +67,25 @@ def guess_remote(repo):
         if search(origin, remote_url) is None:
             return remote
 
+def create_pullrequest(args, repo):
+    if args.user is None or args.token is None:
+        print("Error: Missing credentials for GitHub.")
+        sys.exit(1)
+
+    print(f"Creating a pull request on github for user {args.user}")
+    url = f'https://api.github.com/repos/osbuild/{repo}/pulls'
+    payload = {'head':f'{args.user}:release-{args.version}',
+               'base':'main',
+               'title':f'Prepare release {args.version}',
+               'body':'Tasks:\n- Bump version\n-Update news',
+              }
+
+    r = requests.post(url, json = payload, auth=(args.user,args.token))
+    try:
+        print(f"Pull request successfully created: {r.json()['url']}")
+    except:
+        print("Error: Failed to create pull request.")
+
 # Execute all steps of the release playbook
 def release_playbook(args, repo):
     step(f"Check out a new branch for the release {args.version}", ['git', 'checkout', '-b', f'release-{args.version}'])
@@ -77,8 +97,7 @@ def release_playbook(args, repo):
           ['git', 'commit', f'{repo}.spec', 'NEWS.md', 'setup.py', '-s', f'-m {args.version}', f'-m "Release osbuild {args.version}"'])
     step(f"Push all release changes to the remote '{args.remote}'",
           ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'])
-    # TODO: Create a PR on GitHub automatically (since we know all the necessary infos) and paste a link to it in stdout
-    print("Please use github to submit a pull-request against the main repository!")
+    create_pullrequest(args, repo)
 
 def main():
     # Do some initial sanity checking of the repository and its state
