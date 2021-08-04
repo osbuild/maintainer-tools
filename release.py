@@ -34,12 +34,14 @@ def run_command(argv):
     result = subprocess.run(argv, capture_output=True, text=True, encoding='utf-8').stdout
     return result.strip()
 
-# Ask the user for confirmation on whether to continue
+# Ask the user for confirmation on whether to accept (y) or skip (s) the step or cancel (N) the playbook
 def step(action, args):
-    # TODO: Consider adding a third state (skip?) so the playbook can be easily restarted
-    feedback = input(f"{action} [y/N] ")
+    feedback = input(f"{action} [y/s/N] ")
     if feedback == "y":
         run_command(args)
+    elif feedback == "s":
+        print("Step skipped.")
+        return
     else:
         print("Release playbook canceled.")
         sys.exit(0)
