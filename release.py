@@ -153,11 +153,10 @@ def create_pullrequest(args, repo):
                }
 
     r = requests.post(url, json=payload, auth=(args.user, args.token))
-    # FIXME: Check the return code (201 for success) properly
-    try:
+    if r.status_code == 201:
         msg_ok(f"Pull request successfully created: {r.json()['url']}")
-    except:
-        msg_error(f"Failed to create pull request. {r.json()}")
+    else:
+        msg_error(f"Failed to create pull request: {r.status_code}")
 
 
 def release_playbook(args, repo, current_branch):
