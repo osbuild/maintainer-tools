@@ -9,23 +9,28 @@
 # anonymous API calls)
 
 
-from ghapi.all import GhApi
 import argparse
 import os
+import sys
+from datetime import date
+import subprocess
+from ghapi.all import GhApi
 
 
 def get_milestone(api, version):
     milestones = api.issues.list_milestones()
     for milestone in milestones:
         if version in milestone.title:
-            print("%s (id %s)" % (milestone.title, milestone.number))
+            print(f"Gathering pull requests for milestone '{milestone.title}' ({milestone.url})")
             return milestone.number
+    return None
 
 
-def get_pullrequest_infos(api, milestone, f):
+def get_pullrequest_infos(api, milestone):
     prs = api.pulls.list(state="closed")
     i = 0
     pr_count = 0
+    summaries = ""
 
     while i <= (len(prs)):
         i += 1
@@ -34,38 +39,57 @@ def get_pullrequest_infos(api, milestone, f):
         for pr in prs:
             if pr.milestone is not None and pr.milestone.number == milestone:
                 pr_count += 1
-                print("%s" % pr.url)
-                f.write("  * %s: %s\n\n" % (pr.title, pr.body))
+                print(f" * {pr.url}")
+                summaries += f"  * {pr.title}: {pr.body}\n\n"
 
-    return pr_count
+    print(f"Collected summaries from {pr_count} pull requests.")
+    return summaries
+
+
+def get_contributors(version):
+    contributors = subprocess.run(["git", "log", '--format="%an"', f"v{str(int(version) - 1)}..HEAD"],
+                                  capture_output=True,
+                                  text=True,
+                                  check=True,
+                                  encoding='utf-8').stdout
+    contributor_list = contributors.replace('"', '').split("\n")
+    names = ""
+    for name in set(sorted(contributor_list)):
+        if name != "":
+            names += f"{name}, "
+    return names[:-2]
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--version",
-        help="Set the `version` variable",
-        default="31")
-    parser.add_argument(
-        "--token",
-        help="Supply a token for GitHub read access (optional)",
-        default=None)
+    parser.add_argument("--version", help="Set the version for the release")
+    parser.add_argument("--token", help="Supply a token for GitHub read access (optional)", default=None)
     args = parser.parse_args()
 
-    repo = os.path.basename(os.getcwd())
-
-    api = GhApi(repo=repo, owner='osbuild', token=args.token)
+    api = GhApi(repo="osbuild", owner='osbuild', token=args.token)
 
     milestone = get_milestone(api, args.version)
+    if milestone is None:
+        print(f"Error: Couldn't find a milestone for version {args.version}")
+        sys.exit(1)
 
-    filename = ("NEWS-%s.md" % args.version)
-    if (os.path.isfile(filename)):
-        print("Error: The file %s already exists." % filename)
+    filename = "NEWS.md"
+    if (os.path.exists(filename)):
+        with open(filename, 'r') as file:
+            content = file.read()
+
+        summaries = get_pullrequest_infos(api, milestone)
+        today = date.today()
+        contributors = get_contributors(args.version)
+
+        with open(filename, 'w') as file:
+            file.write(f"## CHANGES WITH {args.version}:\n\n"
+                       f"{summaries}"
+                       f"Contributions from: {contributors}\n\n"
+                       f"— Location, {today.strftime('%Y-%m-%d')}\n\n"
+                       f"{content}")
     else:
-        f = open(filename, "a")
-        pr_count = get_pullrequest_infos(api, milestone, f)
-        f.close()
-        print("\nWritten %s PR summaries to %s" % (pr_count, filename))
+        print(f"Error: The file {filename} does not exist.")
 
 
 if __name__ == "__main__":
