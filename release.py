@@ -88,6 +88,37 @@ def guess_remote(repo):
         if search(origin, remote_url) is None:
             return remote
 
+# Update the NEWS file for osbuild
+# FIXME: Need to decide how to handle the pr_summaries.py file (make it available as .egg?) so it can be properly invoked
+def update_news_osbuild(args):
+    step(f"Collect all PRs for milestone {args.version}", ['../maintainer-tools/pr_summaries.py','--version',f'{args.version}','--token',f'{args.token}'])
+    if os.path.exists(f'NEWS-{args.version}.md'):
+        msg_ok(f"NEWS file generated: {run_command(['ls','-l',f'NEWS-{args.version}.md'])}")
+        step(f"Edit the NEWS-{args.version}.md file", [f'{args.editor}',f'NEWS-{args.version}.md'])
+    else:
+        msg_info("Something went wrong collecting the pull requests (or you skipped the step).")
+
+# Update the NEWS file for osbuild-composer
+def update_news_composer():
+    step("Create a docs directory for this release and move all news files to it",
+         ['mkdir',f'docs/news/{args.version}','&&','mv','docs/news/unreleased/*',f'docs/news/{args.version}'])
+    msg_info(f"Content of docs/news/{args.version}:\n{run_command(['ls',f'docs/news/{args.version}'])}")
+    step("Generate template for new release", ['make', 'release'])
+    step("Edit the NEWS.md file", [f'{args.editor}','NEWS.md'])
+
+# Bump the version in the spec file
+def bump_version(version, filename):
+    latest_tag = run_command(['git', 'describe', '--abbrev=0'])
+    with open(filename, 'r') as file:
+        content = file.read()
+
+    # Maybe use re.sub in case the version appears a second time in the spec file
+    content = content.replace(latest_tag.replace("v",""), str(version))
+
+    with open(filename, 'w') as file:
+        file.write(content)
+
+# Create a pull request on GitHub from the fork to the main repository
 def create_pullrequest(args, repo):
     if args.user is None or args.token is None:
         msg_error("Missing credentials for GitHub.")
@@ -101,20 +132,37 @@ def create_pullrequest(args, repo):
               }
 
     r = requests.post(url, json = payload, auth=(args.user,args.token))
+    # FIXME: Check the return code (201 for success) properly
     try:
         msg_ok(f"Pull request successfully created: {r.json()['url']}")
     except:
         msg_error(f"Failed to create pull request. {r.json()}")
 
 # Execute all steps of the release playbook
-def release_playbook(args, repo):
-    step(f"Check out a new branch for the release {args.version}", ['git', 'checkout', '-b', f'release-{args.version}'])
-    step("Generate template for new release", ['make', 'release'])
-    step(f"Bump the version to {args.version}", ['make', 'bump-version'])
-    step(f"Please make sure the version was bumped correctly to {args.version}", ['git', 'diff'])
-    # TODO: Call the pr_summaries.py script for osbuild or assemble the news from docs/news/unreleased for composer
-    step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
-          ['git', 'commit', f'{repo}.spec', 'NEWS.md', 'setup.py', '-s', f'-m {args.version}', f'-m "Release osbuild {args.version}"'])
+def release_playbook(args, repo, current_branch):
+    if current_branch.__contains__("release") == False:
+        step(f"Check out a new branch for the release {args.version}", ['git', 'checkout', '-b', f'release-{args.version}'])
+
+    if repo == "osbuild":
+        update_news_osbuild(args)
+    elif repo == "osbuild-composer":
+        update_news_composer(args)
+
+    step(f"Bump the version in the {repo}.spec", None)
+    bump_version(args.version, f"{repo}.spec")
+    if repo == "osbuild":
+        bump_version(args.version,"setup.py")
+
+    print(f"{run_command(['git', 'diff'])}")
+    step(f"Please make sure the version was bumped correctly to {args.version}", None)
+
+    if repo == "osbuild":
+        step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
+            ['git', 'commit', f'{repo}.spec', 'NEWS.md', 'setup.py', '-s', f'-m {args.version}', f'-m "Release osbuild {args.version}"'])
+    elif repo == "osbuild-composer":
+        step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
+            ['git','add','docs/news','&&','git', 'commit', f'{repo}.spec', 'NEWS.md', 'docs/news/unreleased',f'docs/news/{args.version}', '-s', f'-m {args.version}', f'-m "Release osbuild {args.version}"'])
+
     step(f"Push all release changes to the remote '{args.remote}'",
           ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'])
     create_pullrequest(args, repo)
@@ -128,18 +176,21 @@ def main():
     version = autoincrement_version()
     remote = guess_remote(repo)
     username = getpass.getuser()
+    # FIXME: Currently only works with GUI editors (e.g. not with vim)
+    editor = run_command(['git', 'config', '--default', '"${EDITOR:-vi}"', '--global', 'core.editor'])
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", help=f"Set the version for the release (Default: {version})", default=version)
     parser.add_argument("--remote", help=f"Set the git remote on github to push the release changes to (Default: {remote})", default=remote)
     parser.add_argument("--user", help=f"Set the username on github (Default: {username})", default=username)
     parser.add_argument("--token", help="Set the github token used to authenticate")
+    parser.add_argument("--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor}", default=editor)
     args = parser.parse_args()
 
     msg_info(f"Updating branch '{current_branch}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 
     # Run the release playbook
-    release_playbook(args, repo)
+    release_playbook(args, repo, current_branch)
 
 
 if __name__ == "__main__":
