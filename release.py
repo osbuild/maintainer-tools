@@ -36,7 +36,9 @@ def sanity_checks():
         msg_error("This is not a git repository.")
 
     current_branch = run_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    if current_branch != "main":
+    if current_branch.__contains__("release"):
+        msg_info(f"You are already on a release branch: {current_branch}")
+    elif current_branch != "main":
         msg_error(f"You are not on the 'main' branch but on branch '{current_branch}'.")
 
     is_clean = run_command(['git', 'status', '--untracked-files=no', '--porcelain'])
@@ -45,6 +47,7 @@ def sanity_checks():
         msg_info("The working directory is not clean.\n"
                  "You have the following unstaged or uncommitted changes:\n"
                  f"{status}")
+    return current_branch
 
 # Run a shellcommand and return stdout
 def run_command(argv):
@@ -117,7 +120,7 @@ def release_playbook(args, repo):
 
 def main():
     # Do some initial sanity checking of the repository and its state
-    sanity_checks()
+    current_branch = sanity_checks()
 
     # Get some basic fallback/default values
     repo = os.path.basename(os.getcwd())
@@ -132,8 +135,7 @@ def main():
     parser.add_argument("--token", help="Set the github token used to authenticate")
     args = parser.parse_args()
 
-    msg_info(f"Updating branch 'main' to avoid conflicts...")
-    run_command(['git', 'pull'])
+    msg_info(f"Updating branch '{current_branch}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 
     # Run the release playbook
     release_playbook(args, repo)
