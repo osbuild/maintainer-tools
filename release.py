@@ -61,7 +61,6 @@ def run_command(argv):
         argv,
         capture_output=True,
         text=True,
-        check=True,
         encoding='utf-8').stdout
     return result.strip()
 
@@ -106,16 +105,12 @@ def guess_remote(repo):
 
 def update_news_osbuild(args):
     """Update the NEWS file for osbuild"""
-    # FIXME: Need to decide how to handle the pr_summaries.py file (make it available as .egg?)
+    # TODO: Need to decide how to handle the pr_summaries.py file (make it available as .egg?)
     # so it can be properly invoked
-    step(f"Collect all PRs for milestone {args.version}", [
+    step(f"Update NEWS.md with pull request summaries for milestone {args.version}", [
          '../maintainer-tools/pr_summaries.py', '--version', f'{args.version}', '--token', f'{args.token}'])
-    if os.path.exists(f'NEWS-{args.version}.md'):
-        msg_ok(f"NEWS file generated: {run_command(['ls','-l',f'NEWS-{args.version}.md'])}")
-        step(f"Edit the NEWS-{args.version}.md file", [f'{args.editor}', f'NEWS-{args.version}.md'])
-    else:
-        msg_info("Something went wrong collecting the pull requests (or you skipped the step).")
-
+    # TODO: Check the return code of pr_summaries.py to see if things actually worked as planned
+    step(f"Make the notes in NEWS.md release ready", [f'{args.editor}', 'NEWS.md'])
 
 def update_news_composer(args):
     """Update the NEWS file for osbuild-composer"""
