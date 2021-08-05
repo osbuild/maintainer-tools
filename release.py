@@ -139,7 +139,7 @@ def create_pullrequest(args, repo):
     if args.user is None or args.token is None:
         msg_error("Missing credentials for GitHub.")
 
-    msg_info(f"Creating a pull request on github for user {args.user}")
+    msg_info(f"Creating a pull request on GitHub for user {args.user}")
     url = f'https://api.github.com/repos/osbuild/{repo}/pulls'
     payload = {'head': f'{args.user}:release-{args.version}',
                'base': 'main',
@@ -203,10 +203,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", help=f"Set the version for the release (Default: {version})", default=version)
     parser.add_argument(
-        "--remote", help=f"Set the git remote on github to push the release changes to (Default: {remote})",
+        "--remote", help=f"Set the git remote on GitHub to push the release changes to (Default: {remote})",
         default=remote)
-    parser.add_argument("--user", help=f"Set the username on github (Default: {username})", default=username)
-    parser.add_argument("--token", help="Set the github token used to authenticate")
+    parser.add_argument("--user", help=f"Set the username on GitHub (Default: {username})", default=username)
+    parser.add_argument("--token", help="Set the GitHub token used to authenticate")
     parser.add_argument(
         "--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor}",
         default=editor)
