@@ -56,10 +56,11 @@ def run_command(argv):
 
 # Ask the user for confirmation on whether to accept (y) or skip (s) the step or cancel (N) the playbook
 def step(action, args):
-    feedback = input(f"{action} [y/s/N] ")
+    feedback = input(f"{fg.BOLD}Step: {fg.RESET}{action} [y/s/N] ")
     if feedback == "y":
-        out = run_command(args)
-        msg_ok (out)
+        if args is not None:
+            out = run_command(args)
+            msg_ok (f"\n{out}")
     elif feedback == "s":
         msg_info("Step skipped.")
         return
