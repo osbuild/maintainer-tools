@@ -139,7 +139,7 @@ def create_pullrequest(args, repo):
     if args.user is None or args.token is None:
         msg_error("Missing credentials for GitHub.")
 
-    msg_info(f"Creating a pull request on GitHub for user {args.user}")
+    step(f"Create a pull request on GitHub for user {args.user}", None)
     url = f'https://api.github.com/repos/osbuild/{repo}/pulls'
     payload = {'head': f'{args.user}:release-{args.version}',
                'base': 'main',
