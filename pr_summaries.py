@@ -5,19 +5,22 @@
 #
 
 # Requires: pip install ghapi (https://ghapi.fast.ai/)
-# Optional: A token to read from GitHub (there is a rate limit for anonymous API calls)
+# Optional: A token to read from GitHub (there is a rate limit for
+# anonymous API calls)
 
 
 from ghapi.all import GhApi
 import argparse
 import os
 
+
 def get_milestone(api, version):
     milestones = api.issues.list_milestones()
     for milestone in milestones:
         if version in milestone.title:
-            print ("%s (id %s)" % (milestone.title, milestone.number))
+            print("%s (id %s)" % (milestone.title, milestone.number))
             return milestone.number
+
 
 def get_pullrequest_infos(api, milestone, f):
     prs = api.pulls.list(state="closed")
@@ -36,10 +39,17 @@ def get_pullrequest_infos(api, milestone, f):
 
     return pr_count
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", help="Set the `version` variable", default="31")
-    parser.add_argument("--token", help="Supply a token for GitHub read access (optional)", default=None)
+    parser.add_argument(
+        "--version",
+        help="Set the `version` variable",
+        default="31")
+    parser.add_argument(
+        "--token",
+        help="Supply a token for GitHub read access (optional)",
+        default=None)
     args = parser.parse_args()
 
     repo = os.path.basename(os.getcwd())
@@ -55,7 +65,8 @@ def main():
         f = open(filename, "a")
         pr_count = get_pullrequest_infos(api, milestone, f)
         f.close()
-        print ("\nWritten %s PR summaries to %s" % (pr_count, filename))
+        print("\nWritten %s PR summaries to %s" % (pr_count, filename))
+
 
 if __name__ == "__main__":
     main()
