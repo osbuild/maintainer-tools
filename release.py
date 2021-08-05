@@ -170,7 +170,7 @@ def release_playbook(args, repo, current_branch):
     elif repo == "osbuild-composer":
         update_news_composer(args)
 
-    step(f"Bump the version in the {repo}.spec", None)
+    step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None)
     bump_version(args.version, f"{repo}.spec")
     if repo == "osbuild":
         bump_version(args.version, "setup.py")
