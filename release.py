@@ -199,7 +199,7 @@ def main():
     remote = guess_remote(repo)
     username = getpass.getuser()
     # FIXME: Currently only works with GUI editors (e.g. not with vim)
-    editor = run_command(['git', 'config', '--default', '"${EDITOR:-vi}"', '--global', 'core.editor'])
+    editor = run_command(['git', 'config', '--default', '"${EDITOR:-gedit}"', '--global', 'core.editor'])
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", help=f"Set the version for the release (Default: {version})", default=version)
