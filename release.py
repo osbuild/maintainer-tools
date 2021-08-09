@@ -188,6 +188,18 @@ def release_playbook(args, repo, current_branch):
          ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'])
     create_pullrequest(args, repo)
 
+    step("Has the upstream pull request been merged?", None)
+
+    step("Switch back to the main branch from upstream and update it",
+         ['git','checkout','main','&&','git','pull'])
+
+    step(f"Tag the release {args.version}",
+         ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'])
+
+    step("Push the release upstream", ['git', 'push', f'v{args.version}'])
+
+    # TODO: Create a release on github
+
 
 def main():
     # Do some initial sanity checking of the repository and its state
