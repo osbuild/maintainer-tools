@@ -41,7 +41,7 @@ def sanity_checks():
         msg_error("This is not a git repository.")
 
     current_branch = run_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    if current_branch.__contains__("release"):
+    if "release" in current_branch:
         msg_info(f"You are already on a release branch: {current_branch}")
     elif current_branch != "main":
         msg_error(f"You are not on the 'main' branch but on branch '{current_branch}'.")
