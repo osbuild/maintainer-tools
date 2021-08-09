@@ -66,6 +66,8 @@ def main():
     parser.add_argument("--token", help="Supply a token for GitHub read access (optional)", default=None)
     args = parser.parse_args()
 
+    if token is None:
+        print("Warning: You have not passed a token so you may run into GitHub rate limiting.")
     api = GhApi(repo="osbuild", owner='osbuild', token=args.token)
 
     milestone = get_milestone(api, args.version)
