@@ -60,29 +60,50 @@ def get_contributors(version):
     return names[:-2]
 
 
+def get_unreleased(version):
+    summaries = ""
+    path = f'docs/news/{version}'
+    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    for file in files:
+        with open(f'docs/news/{version}/{file}', 'r') as md:
+            summaries += md.read() + "\n"
+
+    return summaries
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", help="Set the version for the release")
     parser.add_argument("--token", help="Supply a token for GitHub read access (optional)", default=None)
+    parser.add_argument("--component", help="Set the component")
     args = parser.parse_args()
 
-    if token is None:
-        print("Warning: You have not passed a token so you may run into GitHub rate limiting.")
-    api = GhApi(repo="osbuild", owner='osbuild', token=args.token)
+    today = date.today()
+    contributors = get_contributors(args.version)
 
-    milestone = get_milestone(api, args.version)
-    if milestone is None:
-        print(f"Error: Couldn't find a milestone for version {args.version}")
+    if args.component == "osbuild":
+        if args.token is None:
+            print("Warning: You have not passed a token so you may run into GitHub rate limiting.")
+        api = GhApi(repo="osbuild", owner='osbuild', token=args.token)
+
+        milestone = get_milestone(api, args.version)
+        if milestone is None:
+            print(f"Error: Couldn't find a milestone for version {args.version}")
+            sys.exit(1)
+        
+        summaries = get_pullrequest_infos(api, milestone)
+
+    elif args.component == "osbuild-composer":
+        summaries = get_unreleased(args.version)
+    
+    else:
+        print("Error. You have not specified a component.")
         sys.exit(1)
 
     filename = "NEWS.md"
     if (os.path.exists(filename)):
         with open(filename, 'r') as file:
             content = file.read()
-
-        summaries = get_pullrequest_infos(api, milestone)
-        today = date.today()
-        contributors = get_contributors(args.version)
 
         with open(filename, 'w') as file:
             file.write(f"## CHANGES WITH {args.version}:\n\n"

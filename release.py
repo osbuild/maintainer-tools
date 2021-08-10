@@ -105,11 +105,11 @@ def guess_remote(repo):
 
 def update_news_osbuild(args):
     """Update the NEWS file for osbuild"""
-    # TODO: Need to decide how to handle the pr_summaries.py file (make it available as .egg?)
+    # TODO: Need to decide how to handle the update_news.py file (make it available as .egg?)
     # so it can be properly invoked
-    # TODO: Check the return code of pr_summaries.py to see if things actually worked as planned
-    step(f"Update NEWS.md with pull request summaries for milestone {args.version}", [
-         '../maintainer-tools/pr_summaries.py', '--version', f'{args.version}', '--token', f'{args.token}'])
+    # TODO: Check the return code of update_news.py to see if things actually worked as planned
+    step(f"Update NEWS.md with pull request summaries for milestone {args.version}",
+         ['../maintainer-tools/update_news.py', '--version', f'{args.version}', '--token', f'{args.token}', '--component', 'osbuild'])
 
 
 def update_news_composer(args):
@@ -117,7 +117,8 @@ def update_news_composer(args):
     step("Create a docs directory for this release and move all news files to it",
          ['mkdir', f'docs/news/{args.version}', '&&', 'mv', 'docs/news/unreleased/*', f'docs/news/{args.version}'])
     msg_info(f"Content of docs/news/{args.version}:\n{run_command(['ls',f'docs/news/{args.version}'])}")
-    step("Generate template for new release", ['make', 'release'])
+    step(f"Update NEWS.md with information from the markdown files in 'docs/news/{args.version}'",
+         ['../maintainer-tools/update_news.py', '--version', f'{args.version}', '--token', f'{args.token}', '--component', 'osbuild-composer'])
 
 
 def bump_version(version, filename):
