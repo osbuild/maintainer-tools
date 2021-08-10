@@ -43,6 +43,8 @@ def sanity_checks():
     current_branch = run_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
     if "release" in current_branch:
         msg_info(f"You are already on a release branch: {current_branch}")
+    elif "rhel-8" in current_branch:
+        msg_info(f"You are going for a point release against: {current_branch}")
     elif current_branch != "main":
         msg_error(f"You are not on the 'main' branch but on branch '{current_branch}'.")
 
@@ -83,7 +85,10 @@ def step(action, args):
 def autoincrement_version():
     """Bump the version of the latest git tag by 1"""
     latest_tag = run_command(['git', 'describe', '--abbrev=0'])
-    version = int(latest_tag.replace("v", "")) + 1
+    if "." in latest_tag:
+        version = latest_tag.replace("v", "").split(".")[0] + "." + str(int(latest_tag[-1]) + 1)
+    else:
+        version = int(latest_tag.replace("v", "")) + 1
     return version
 
 
