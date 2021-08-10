@@ -165,7 +165,7 @@ def release_playbook(args, repo, current_branch):
     elif repo == "osbuild-composer":
         update_news_composer(args)
 
-    step(f"Make the notes in NEWS.md release ready using {args.editor}", [f'{args.editor}', 'NEWS.md'])
+    step(f"Make the notes in NEWS.md release ready using {args.editor}", [{args.editor}, 'NEWS.md'])
 
     step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None)
     bump_version(args.version, f"{repo}.spec")
