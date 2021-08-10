@@ -165,7 +165,7 @@ def release_playbook(args, repo, current_branch):
     elif repo == "osbuild-composer":
         update_news_composer(args)
 
-    step(f"Make the notes in NEWS.md release ready using {args.editor}", [{args.editor}, 'NEWS.md'])
+    step(f"Make the notes in NEWS.md release ready using {args.editor}", [f'{args.editor}', 'NEWS.md'])
 
     step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None)
     bump_version(args.version, f"{repo}.spec")
@@ -222,7 +222,7 @@ def main():
     parser.add_argument("--user", help=f"Set the username on GitHub (Default: {username})", default=username)
     parser.add_argument("--token", help="Set the GitHub token used to authenticate")
     parser.add_argument(
-        "--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor}",
+        "--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor})",
         default=editor)
     args = parser.parse_args()
 
