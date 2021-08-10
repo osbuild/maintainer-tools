@@ -139,7 +139,7 @@ def bump_version(version, filename):
         file.write(content)
 
 
-def create_pullrequest(args, repo):
+def create_pullrequest(args, repo, current_branch):
     """Create a pull request on GitHub from the fork to the main repository"""
     if args.user is None or args.token is None:
         msg_error("Missing credentials for GitHub.")
@@ -147,7 +147,7 @@ def create_pullrequest(args, repo):
     step(f"Create a pull request on GitHub for user {args.user}", None)
     url = f'https://api.github.com/repos/osbuild/{repo}/pulls'
     payload = {'head': f'{args.user}:release-{args.version}',
-               'base': 'main',
+               'base': current_branch,
                'title': f'Prepare release {args.version}',
                'body': 'Tasks:\n- Bump version\n-Update news',
                }
@@ -192,7 +192,7 @@ def release_playbook(args, repo, current_branch):
 
     step(f"Push all release changes to the remote '{args.remote}'",
          ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'])
-    create_pullrequest(args, repo)
+    create_pullrequest(args, repo, current_branch)
 
     step("Has the upstream pull request been merged?", None)
 
