@@ -16,7 +16,7 @@ import requests
 class fg:
     BOLD = '\033[1m'  # bold
     OK = '\033[32m'  # green
-    WARNING = '\033[33m'  # yellow
+    INFO = '\033[33m'  # yellow
     ERROR = '\033[31m'  # red
     RESET = '\033[0m'  # reset
 
@@ -27,7 +27,7 @@ def msg_error(body):
 
 
 def msg_info(body):
-    print(f"{fg.WARNING}{fg.BOLD}Info:{fg.RESET} {body}")
+    print(f"{fg.INFO}{fg.BOLD}Info:{fg.RESET} {body}")
 
 
 def msg_ok(body):
