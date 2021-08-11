@@ -220,14 +220,14 @@ def main():
     editor = run_command(['git', 'config', '--default', '"${EDITOR:-gedit}"', '--global', 'core.editor'])
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", help=f"Set the version for the release (Default: {version})", default=version)
+    parser.add_argument("-v", "--version", help=f"Set the version for the release (Default: {version})", default=version)
     parser.add_argument(
-        "--remote", help=f"Set the git remote on GitHub to push the release changes to (Default: {remote})",
+        "-r", "--remote", help=f"Set the git remote on GitHub to push the release changes to (Default: {remote})",
         default=remote)
-    parser.add_argument("--user", help=f"Set the username on GitHub (Default: {username})", default=username)
-    parser.add_argument("--token", help="Set the GitHub token used to authenticate")
+    parser.add_argument("-u", "--user", help=f"Set the username on GitHub (Default: {username})", default=username)
+    parser.add_argument("-t", "--token", help="Set the GitHub token used to authenticate")
     parser.add_argument(
-        "--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor})",
+        "-e", "--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor})",
         default=editor)
     args = parser.parse_args()
 
