@@ -185,10 +185,11 @@ def release_playbook(args, repo, current_branch):
              ['git', 'commit', f'{repo}.spec', 'NEWS.md', 'setup.py',
               '-s', f'-m {args.version}', f'-m "Release osbuild {args.version}"'])
     elif repo == "osbuild-composer":
-        step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
-             ['git', 'add', 'docs/news', '&&', 'git', 'commit', f'{repo}.spec', 'NEWS.md',
-              'docs/news/unreleased', f'docs/news/{args.version}', '-s',
-              f'-m {args.version}', f'-m "Release osbuild {args.version}"'])
+        step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)", None)
+        run_command(['git', 'add', 'docs/news'])
+        run_command(['git', 'commit', f'{repo}.spec', 'NEWS.md',
+                     'docs/news/unreleased', f'docs/news/{args.version}', '-s',
+                     f'-m {args.version}', f'-m "Release osbuild-composer {args.version}"'])
 
     step(f"Push all release changes to the remote '{args.remote}'",
          ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'])
