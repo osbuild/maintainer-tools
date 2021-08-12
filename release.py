@@ -3,14 +3,18 @@
 #
 # Step interactively through the release process for osbuild
 #
+# Requires: pip install ghapi (https://ghapi.fast.ai/)
 
 import argparse
 import subprocess
 import sys
 import os
+import shutil
 import getpass
 from re import search
 import requests
+from datetime import date
+from ghapi.all import GhApi
 
 
 class fg:
@@ -67,16 +71,20 @@ def run_command(argv):
     return result.strip()
 
 
-def step(action, args):
+def step(action, args, verify):
     """Ask the user for confirmation on whether to accept (y) or skip (s) the step or cancel (N) the playbook"""
     feedback = input(f"{fg.BOLD}Step: {fg.RESET}{action} [y/s/N] ")
     if feedback == "y":
         if args is not None:
             out = run_command(args)
+            if verify is not None:
+                out = run_command(verify)
+
             msg_ok(f"\n{out}")
+        return None
     elif feedback == "s":
         msg_info("Step skipped.")
-        return
+        return "skipped"
     else:
         msg_info("Release playbook canceled.")
         sys.exit(0)
@@ -108,22 +116,116 @@ def guess_remote(repo):
     return None
 
 
+def get_milestone(api, version):
+    milestones = api.issues.list_milestones()
+    for milestone in milestones:
+        if str(version) in milestone.title:
+            msg_info(f"Gathering pull requests for milestone '{milestone.title}' ({milestone.url})")
+            return milestone.number
+    return None
+
+
+def get_pullrequest_infos(api, milestone):
+    prs = api.pulls.list(state="closed")
+    i = 0
+    pr_count = 0
+    summaries = ""
+
+    while i <= (len(prs)):
+        i += 1
+        prs = api.pulls.list(state="closed", page=i)
+
+        for pr in prs:
+            if pr.milestone is not None and pr.milestone.number == milestone:
+                pr_count += 1
+                print(f" * {pr.url}")
+                summaries += f"  * {pr.title}: {pr.body}\n\n"
+
+    msg_ok(f"Collected summaries from {pr_count} pull requests.")
+    return summaries
+
+
+def get_contributors(version):
+    tag = run_command(['git', 'describe', '--abbrev=0'])
+    contributors = run_command(["git", "log", '--format="%an"', f"{tag}..HEAD"])
+    contributor_list = contributors.replace('"', '').split("\n")
+    names = ""
+    for name in set(sorted(contributor_list)):
+        if name != "":
+            names += f"{name}, "
+
+    return names[:-2]
+
+
+def get_unreleased(version):
+    summaries = ""
+    path = f'docs/news/{version}'
+    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    for file in files:
+        with open(f'docs/news/{version}/{file}', 'r') as md:
+            summaries += md.read() + "\n"
+
+    return summaries
+
+
 def update_news_osbuild(args):
     """Update the NEWS file for osbuild"""
-    # TODO: Need to decide how to handle the update_news.py file (make it available as .egg?)
-    # so it can be properly invoked
-    # TODO: Check the return code of update_news.py to see if things actually worked as planned
-    step(f"Update NEWS.md with pull request summaries for milestone {args.version}",
-         ['../maintainer-tools/update_news.py', '--version', f'{args.version}', '--token', f'{args.token}', '--component', 'osbuild'])
+    a = step(f"Update NEWS.md with pull request summaries for milestone {args.version}", None, None)
+    if a == "skipped":
+        return ""
+
+    if args.token is None:
+        msg_info("You have not passed a token so you may run into GitHub rate limiting.")
+
+    api = GhApi(repo="osbuild", owner='osbuild', token=args.token)
+
+    milestone = get_milestone(api, args.version)
+    if milestone is None:
+        msg_info(f"Couldn't find a milestone for version {args.version}")
+        return ""
+    else:
+        summaries = get_pullrequest_infos(api, milestone)
+        return summaries
 
 
 def update_news_composer(args):
     """Update the NEWS file for osbuild-composer"""
-    step("Create a docs directory for this release and move all news files to it",
-         ['mkdir', f'docs/news/{args.version}', '&&', 'mv', 'docs/news/unreleased/*', f'docs/news/{args.version}'])
+    src = 'docs/news/unreleased'
+    target = f'docs/news/{args.version}'
+    step(f"Create '{target}' for this release and move all unreleased .md files to it", None, None)
+    files = os.listdir(src)
+    for file in files:
+        shutil.move(os.path.join(src,file), target)
     msg_info(f"Content of docs/news/{args.version}:\n{run_command(['ls',f'docs/news/{args.version}'])}")
-    step(f"Update NEWS.md with information from the markdown files in 'docs/news/{args.version}'",
-         ['../maintainer-tools/update_news.py', '--version', f'{args.version}', '--token', f'{args.token}', '--component', 'osbuild-composer'])
+
+    step(f"Update NEWS.md with information from the markdown files in 'docs/news/{args.version}'", None, None)
+    summaries = get_unreleased(args.version)
+    return summaries
+
+
+def update_news(args, repo):
+    """Update the NEWS file"""
+    today = date.today()
+    contributors = get_contributors(args.version)
+
+    if repo == "osbuild":
+        summaries = update_news_osbuild(args)
+    elif repo == "osbuild-composer":
+        summaries = update_news_composer(args)
+    
+    filename = "NEWS.md"
+    if (os.path.exists(filename)):
+        with open(filename, 'r') as file:
+            content = file.read()
+
+        with open(filename, 'w') as file:
+            file.write(f"## CHANGES WITH {args.version}:\n\n"
+                       f"{summaries}"
+                       f"Contributions from: {contributors}\n\n"
+                       f"— Location, {today.strftime('%Y-%m-%d')}\n\n"
+                       f"{content}")
+    else:
+        print(f"Error: The file {filename} does not exist.")
 
 
 def bump_version(version, filename):
@@ -142,9 +244,8 @@ def bump_version(version, filename):
 def create_pullrequest(args, repo, current_branch):
     """Create a pull request on GitHub from the fork to the main repository"""
     if args.user is None or args.token is None:
-        msg_error("Missing credentials for GitHub.")
+        msg_error("Missing credentials for GitHub. Without a token you cannot create a pull request.")
 
-    step(f"Create a pull request on GitHub for user {args.user}", None)
     url = f'https://api.github.com/repos/osbuild/{repo}/pulls'
     payload = {'head': f'{args.user}:release-{args.version}',
                'base': current_branch,
@@ -161,49 +262,57 @@ def create_pullrequest(args, repo, current_branch):
 
 def release_playbook(args, repo, current_branch):
     """Execute all steps of the release playbook"""
+    # FIXME: Currently this step silently fails if the release branch exists but is not checked out
     if "release" not in current_branch:
-        step(f"Check out a new branch for the release {args.version}", [
-             'git', 'checkout', '-b', f'release-{args.version}'])
+        step(f"Check out a new branch for the release {args.version}",
+             ['git', 'checkout', '-b', f'release-{args.version}'],
+             ['git','branch','--show-current'])
 
-    if repo == "osbuild":
-        update_news_osbuild(args)
-    elif repo == "osbuild-composer":
-        update_news_composer(args)
+    a = step("Update the NEWS.md file", None, None)
+    if a != "skipped":
+        update_news(args, repo)
 
-    step(f"Make the notes in NEWS.md release ready using {args.editor}", [f'{args.editor}', 'NEWS.md'])
+    step(f"Make the notes in NEWS.md release ready using {args.editor}", [f'{args.editor}', 'NEWS.md'], None)
 
-    step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None)
-    bump_version(args.version, f"{repo}.spec")
-    if repo == "osbuild":
-        bump_version(args.version, "setup.py")
+    a = step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None, None)
+    if a != "skipped":
+        bump_version(args.version, f"{repo}.spec")
+        if repo == "osbuild":
+            bump_version(args.version, "setup.py")
 
     print(f"{run_command(['git', 'diff'])}")
-    step(f"Please make sure the version was bumped correctly to {args.version}", None)
+    step(f"Please review all changes {args.version}", None, None)
 
     if repo == "osbuild":
         step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
              ['git', 'commit', f'{repo}.spec', 'NEWS.md', 'setup.py',
-              '-s', f'-m {args.version}', f'-m "Release osbuild {args.version}"'])
+              '-s', f'-m {args.version}', f'-m "Release osbuild {args.version}"'], None)
     elif repo == "osbuild-composer":
-        step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)", None)
-        run_command(['git', 'add', 'docs/news'])
-        run_command(['git', 'commit', f'{repo}.spec', 'NEWS.md',
-                     'docs/news/unreleased', f'docs/news/{args.version}', '-s',
-                     f'-m {args.version}', f'-m "Release osbuild-composer {args.version}"'])
+        a = step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)", None, None)
+        if a != "skipped":
+            run_command(['git', 'add', 'docs/news'])
+            run_command(['git', 'commit', f'{repo}.spec', 'NEWS.md',
+                        'docs/news/unreleased', f'docs/news/{args.version}', '-s',
+                        f'-m {args.version}', f'-m "Release osbuild-composer {args.version}"'])
 
     step(f"Push all release changes to the remote '{args.remote}'",
-         ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'])
-    create_pullrequest(args, repo, current_branch)
+         ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'], None)
 
-    step("Has the upstream pull request been merged?", None)
+    a = step(f"Create a pull request on GitHub for user {args.user}", None, None)
+    if a != "skipped":
+        create_pullrequest(args, repo, current_branch)
+
+    step("Has the upstream pull request been merged?", None, None)
 
     step("Switch back to the main branch from upstream and update it",
-         ['git','checkout','main','&&','git','pull'])
+         ['git','checkout','main','&&','git','pull'],
+         ['git','branch','--show-current'])
 
-    step(f"Tag the release {args.version}",
-         ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'])
+    step(f"Tag the release with version 'v{args.version}'",
+         ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'],
+         ['git','describe',f'v{args.version}'])
 
-    step("Push the release upstream", ['git', 'push', f'v{args.version}'])
+    step("Push the release upstream", ['git', 'push', f'v{args.version}'], None)
 
     # TODO: Create a release on github
 
