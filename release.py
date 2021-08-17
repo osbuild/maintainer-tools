@@ -6,6 +6,7 @@
 # Requires: pip install ghapi (https://ghapi.fast.ai/)
 
 import argparse
+import contextlib
 import subprocess
 import sys
 import os
@@ -116,6 +117,29 @@ def guess_remote(repo):
     return None
 
 
+def detect_github_token(args):
+
+    if args.token:
+        msg_info("Using token supplied via `--token`")
+        return args.token
+
+    token = os.getenv("GITHUB_TOKEN")
+    if token:
+        msg_info("Using token from '$GITHUB_TOKEN'")
+        return token
+
+    path = os.path.expanduser("~/.config/packit.yaml")
+    with contextlib.suppress(FileNotFoundError, ImportError):
+        import yaml  # pylint disable=import-outside-toplevel
+        with open(path, 'r') as f:
+            data = yaml.safe_load(f)
+            token = data["authentication"]["github.com"]["token"]
+            msg_info("Using token from '~/.config/packit.yaml'")
+            return token
+
+    return None
+
+
 def get_milestone(api, version):
     milestones = api.issues.list_milestones()
     for milestone in milestones:
@@ -174,10 +198,12 @@ def update_news_osbuild(args):
     if a == "skipped":
         return ""
 
-    if args.token is None:
+    token = detect_github_token(args)
+
+    if token is None:
         msg_info("You have not passed a token so you may run into GitHub rate limiting.")
 
-    api = GhApi(repo="osbuild", owner='osbuild', token=args.token)
+    api = GhApi(repo="osbuild", owner='osbuild', token=token)
 
     milestone = get_milestone(api, args.version)
     if milestone is None:
