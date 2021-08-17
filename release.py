@@ -173,15 +173,36 @@ def list_prs_for_milestone(api, milestone):
 
 
 def get_pullrequest_infos(api, milestone):
+    import mistune  # pylint disable=import-outside-toplevel
+
+    class NotesRenderer(mistune.Renderer):
+        def __init__(self) -> None:
+            super().__init__()
+            self.in_notes = False
+
+        def block_code(self, code, _lang):
+            if self.in_notes:
+                self.in_notes = False
+                return code
+            return ""
+
+        def paragraph(self, text):
+            self.in_notes = "Release Notes" in text
+            return ""
+
     summaries = []
 
-    for pr in list_prs_for_milestone(api, milestone):
+    renderer = NotesRenderer()
+    markdown = mistune.Markdown(renderer=renderer)
+
+    for i, pr in enumerate(list_prs_for_milestone(api, milestone)):
+        msg = markdown(pr.body)
         print(f" * {pr.url}")
-        msg = f"  * {pr.title}: {pr.body}"
+        if not msg:
+            msg = f"  * {pr.title}: {pr.body}"
         summaries.append(msg)
 
-    n = len(summaries)
-    msg_ok(f"Collected summaries from {n} pull requests.")
+    msg_ok(f"Collected summaries from {i} pull requests.")
     return "\n\n".join(summaries)
 
 
