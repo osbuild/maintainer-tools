@@ -7,6 +7,7 @@
 
 import argparse
 import contextlib
+import itertools
 import subprocess
 import sys
 import os
@@ -145,28 +146,43 @@ def get_milestone(api, version):
     for milestone in milestones:
         if str(version) in milestone.title:
             msg_info(f"Gathering pull requests for milestone '{milestone.title}' ({milestone.url})")
-            return milestone.number
+            return milestone
     return None
 
 
+def list_prs_for_milestone(api, milestone):
+    query = f'milestone:"{milestone.title}" type:pr repo:osbuild/osbuild'
+    count = 0
+
+    for i in itertools.count():
+        res = api.search.issues_and_pull_requests(q=query, per_page=20, page=i)
+        items = res["items"]
+        print(res.total_count, i, len(items), count)
+
+        if not res:
+            break
+
+        for r in items:
+            if r.state != "closed":
+                continue
+            yield r
+
+        count += len(items)
+        if count == res.total_count:
+            break
+
+
 def get_pullrequest_infos(api, milestone):
-    prs = api.pulls.list(state="closed")
-    i = 0
-    pr_count = 0
-    summaries = ""
+    summaries = []
 
-    while i <= (len(prs)):
-        i += 1
-        prs = api.pulls.list(state="closed", page=i)
+    for pr in list_prs_for_milestone(api, milestone):
+        print(f" * {pr.url}")
+        msg = f"  * {pr.title}: {pr.body}"
+        summaries.append(msg)
 
-        for pr in prs:
-            if pr.milestone is not None and pr.milestone.number == milestone:
-                pr_count += 1
-                print(f" * {pr.url}")
-                summaries += f"  * {pr.title}: {pr.body}\n\n"
-
-    msg_ok(f"Collected summaries from {pr_count} pull requests.")
-    return summaries
+    n = len(summaries)
+    msg_ok(f"Collected summaries from {n} pull requests.")
+    return "\n\n".join(summaries)
 
 
 def get_contributors(version):
