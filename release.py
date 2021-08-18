@@ -40,7 +40,10 @@ def msg_ok(body):
     print(f"{fg.OK}{fg.BOLD}OK:{fg.RESET} {body}")
 
 
-def sanity_checks():
+def sanity_checks(repo):
+    if "osbuild" not in repo:
+        msg_info("This script is only tested with 'osbuild' and 'osbuild-composer'.")
+
     """Check if we are in a git repo, on the right branch and up-to-date"""
     is_git = run_command(['git', 'rev-parse', '--is-inside-work-tree'])
     if is_git != "true":
@@ -95,7 +98,10 @@ def step(action, args, verify):
 def autoincrement_version():
     """Bump the version of the latest git tag by 1"""
     latest_tag = run_command(['git', 'describe', '--abbrev=0'])
-    if "." in latest_tag:
+    if latest_tag == "":
+        msg_info("There are no tags yet in this repository.")
+        return "1"
+    elif "." in latest_tag:
         version = latest_tag.replace("v", "").split(".")[0] + "." + str(int(latest_tag[-1]) + 1)
     else:
         version = int(latest_tag.replace("v", "")) + 1
@@ -390,11 +396,9 @@ def release_playbook(args, repo):
 
 
 def main():
-    # Do some initial sanity checking of the repository and its state
-    current_branch = sanity_checks()
-
     # Get some basic fallback/default values
     repo = os.path.basename(os.getcwd())
+    current_branch = sanity_checks(repo)
     version = autoincrement_version()
     remote = guess_remote(repo)
     username = getpass.getuser()
