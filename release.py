@@ -297,14 +297,19 @@ def bump_version(version, filename):
         file.write(content)
 
 
-def create_pullrequest(args, repo, current_branch):
+def create_pullrequest(args, repo):
     """Create a pull request on GitHub from the fork to the main repository"""
     if args.user is None or args.token is None:
         msg_error("Missing credentials for GitHub. Without a token you cannot create a pull request.")
 
+    if "release" in args.base:
+        msg_info("You are probably re-executing this script, trying to create a pull request"
+                 f"against a '{args.base}' (expected: 'main' or 'rhel-*').\n"
+                 "You may want to specifiy the base branch (--base) manually.")
+
     url = f'https://api.github.com/repos/osbuild/{repo}/pulls'
     payload = {'head': f'{args.user}:release-{args.version}',
-               'base': current_branch,
+               'base': args.base,
                'title': f'Prepare release {args.version}',
                'body': 'Tasks:\n- Bump version\n-Update news',
                }
@@ -316,10 +321,10 @@ def create_pullrequest(args, repo, current_branch):
         msg_error(f"Failed to create pull request: {r.status_code}")
 
 
-def release_playbook(args, repo, current_branch):
+def release_playbook(args, repo):
     """Execute all steps of the release playbook"""
     # FIXME: Currently this step silently fails if the release branch exists but is not checked out
-    if "release" not in current_branch:
+    if "release" not in args.base:
         step(f"Check out a new branch for the release {args.version}",
              ['git', 'checkout', '-b', f'release-{args.version}'],
              ['git','branch','--show-current'])
@@ -356,7 +361,7 @@ def release_playbook(args, repo, current_branch):
 
     a = step(f"Create a pull request on GitHub for user {args.user}", None, None)
     if a != "skipped":
-        create_pullrequest(args, repo, current_branch)
+        create_pullrequest(args, repo)
 
     step("Has the upstream pull request been merged?", None, None)
 
@@ -396,12 +401,14 @@ def main():
     parser.add_argument(
         "-e", "--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor})",
         default=editor)
+    parser.add_argument(
+        "-b", "--base", help=f"Set the base branch that the release targets (Default: {current_branch})", default=current_branch)
     args = parser.parse_args()
 
-    msg_info(f"Updating branch '{current_branch}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
+    msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 
     # Run the release playbook
-    release_playbook(args, repo, current_branch)
+    release_playbook(args, repo)
 
 
 if __name__ == "__main__":
