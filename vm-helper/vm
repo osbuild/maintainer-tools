@@ -105,14 +105,16 @@ def main():
 
     if arch == "x86_64":
         args = ["qemu-system-x86_64"]
+        args += [
+            "-machine",
+            "q35"
+        ]
         if argv.get("secureboot", False):
             args += [
                 "-drive",
                 "file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on",
                 "-drive",
-                "file=/usr/share/OVMF/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off",
-                "-machine",
-                "q35"
+                "file=/usr/share/OVMF/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off"
             ]
         elif argv.get("uefi", False):
             args += [
