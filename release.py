@@ -118,12 +118,7 @@ def guess_remote(repo):
     return None
 
 
-def detect_github_token(args):
-
-    if args.token:
-        msg_info("Using token supplied via `--token`")
-        return args.token
-
+def detect_github_token():
     token = os.getenv("GITHUB_TOKEN")
     if token:
         msg_info("Using token from '$GITHUB_TOKEN'")
@@ -235,9 +230,7 @@ def update_news_osbuild(args):
     if a == "skipped":
         return ""
 
-    token = detect_github_token(args)
-
-    if token is None:
+    if args.token is None:
         msg_info("You have not passed a token so you may run into GitHub rate limiting.")
 
     api = GhApi(repo="osbuild", owner='osbuild', token=token)
@@ -390,6 +383,7 @@ def main():
     remote = guess_remote(repo)
     username = getpass.getuser()
     # FIXME: Currently only works with GUI editors (e.g. not with vim)
+    token = detect_github_token()
     editor = run_command(['git', 'config', '--default', '"${EDITOR:-gedit}"', '--global', 'core.editor'])
 
     parser = argparse.ArgumentParser()
@@ -398,7 +392,7 @@ def main():
         "-r", "--remote", help=f"Set the git remote on GitHub to push the release changes to (Default: {remote})",
         default=remote)
     parser.add_argument("-u", "--user", help=f"Set the username on GitHub (Default: {username})", default=username)
-    parser.add_argument("-t", "--token", help="Set the GitHub token used to authenticate")
+    parser.add_argument("-t", "--token", help=f"Set the GitHub token used to authenticate (token found: {bool(token)})", default=token)
     parser.add_argument(
         "-e", "--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor})",
         default=editor)
