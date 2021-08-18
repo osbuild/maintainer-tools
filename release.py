@@ -321,6 +321,17 @@ def create_pullrequest(args, repo):
         msg_error(f"Failed to create pull request: {r.status_code}")
 
 
+def print_config(args, repo):
+    print(f"{fg.BOLD}Release:{fg.RESET}\n"
+          f"  Component:     {repo}\n"
+          f"  Version:       {args.version}\n"
+          f"  Base branch:   {args.base}\n"
+          f"{fg.BOLD}GitHub{fg.RESET}:\n"
+          f"  User:          {args.user}\n"
+          f"  Token:         {bool(args.token)}\n"
+          f"  Remote:        {args.remote}\n")
+
+
 def release_playbook(args, repo):
     """Execute all steps of the release playbook"""
     # FIXME: Currently this step silently fails if the release branch exists but is not checked out
@@ -406,6 +417,8 @@ def main():
     args = parser.parse_args()
 
     msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
+
+    print_config(args, repo)
 
     # Run the release playbook
     release_playbook(args, repo)
