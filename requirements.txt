@@ -1,0 +1,5 @@
+# release.py
+ghapi
+requests
+mistune
+pyyaml
