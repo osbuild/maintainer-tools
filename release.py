@@ -383,9 +383,10 @@ def release_playbook(args, repo):
 
     step("Has the upstream pull request been merged?", None, None)
 
-    step("Switch back to the main branch from upstream and update it",
-         ['git','checkout','main','&&','git','pull'],
-         ['git','branch','--show-current'])
+    step("Switch back to the main branch from upstream and update it", None, None)
+    run_command(['git','checkout','main'])
+    run_command(['git','pull'])
+    run_command(['git','branch','--show-current'])
 
     step(f"Tag the release with version 'v{args.version}'",
          ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'],
