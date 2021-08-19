@@ -350,7 +350,8 @@ def release_playbook(args, repo):
     if a != "skipped":
         update_news(args, repo)
 
-    step(f"Make the notes in NEWS.md release ready using {args.editor}", [f'{args.editor}', 'NEWS.md'], None)
+    step(f"Make the notes in NEWS.md release ready using {args.editor}", None, None)
+    subprocess.call([f'{args.editor}', 'NEWS.md'])
 
     a = step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None, None)
     if a != "skipped":
