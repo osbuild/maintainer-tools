@@ -239,7 +239,7 @@ def update_news_osbuild(args):
     if args.token is None:
         msg_info("You have not passed a token so you may run into GitHub rate limiting.")
 
-    api = GhApi(repo="osbuild", owner='osbuild', token=token)
+    api = GhApi(repo="osbuild", owner='osbuild', token=args.token)
 
     milestone = get_milestone(api, args.version)
     if milestone is None:
