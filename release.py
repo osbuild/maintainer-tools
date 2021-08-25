@@ -318,6 +318,11 @@ def create_pullrequest(args, api):
     api.pulls.create(title, head, args.base, body, True, False, None)
 
 
+def create_release(args, api):
+    api.repos.create_release(f'v{args.version}', None, f'{args.version}',
+                             f"## CHANGES WITH {args.version}", False, False, None)
+
+
 def print_config(args, repo):
     print("\n--------------------------------\n"
           f"{fg.BOLD}Release:{fg.RESET}\n"
@@ -387,7 +392,11 @@ def release_playbook(args, repo, api):
          ['git','describe',f'v{args.version}'])
     # TODO: Use something like git show HEAD to make sure the tag was created (fails e.g. on missing pgp key)
 
-    step("Push the release upstream", ['git', 'push', f'v{args.version}'], None)
+    step("Push the release tag upstream", ['git', 'push', f'v{args.version}'], None)
+
+    a = step("Create the release on GitHub", None, None)
+    if a != "skipped":
+        create_release(args, api)
 
     # TODO: Create a release on github
 
