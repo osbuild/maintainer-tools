@@ -230,7 +230,7 @@ def get_unreleased(version):
     return summaries
 
 
-def update_news_osbuild(args):
+def update_news_osbuild(args, api):
     """Update the NEWS file for osbuild"""
     a = step(f"Update NEWS.md with pull request summaries for milestone {args.version}", None, None)
     if a == "skipped":
@@ -238,8 +238,6 @@ def update_news_osbuild(args):
 
     if args.token is None:
         msg_info("You have not passed a token so you may run into GitHub rate limiting.")
-
-    api = GhApi(repo="osbuild", owner='osbuild', token=args.token)
 
     milestone = get_milestone(api, args.version)
     if milestone is None:
@@ -265,13 +263,13 @@ def update_news_composer(args):
     return summaries
 
 
-def update_news(args, repo):
+def update_news(args, repo, api):
     """Update the NEWS file"""
     today = date.today()
     contributors = get_contributors(args.version)
 
     if repo == "osbuild":
-        summaries = update_news_osbuild(args)
+        summaries = update_news_osbuild(args, api)
     elif repo == "osbuild-composer":
         summaries = update_news_composer(args)
     
@@ -303,7 +301,7 @@ def bump_version(version, filename):
         file.write(content)
 
 
-def create_pullrequest(args, repo):
+def create_pullrequest(args, api):
     """Create a pull request on GitHub from the fork to the main repository"""
     if args.user is None or args.token is None:
         msg_error("Missing credentials for GitHub. Without a token you cannot create a pull request.")
@@ -313,18 +311,11 @@ def create_pullrequest(args, repo):
                  f"against a '{args.base}' (expected: 'main' or 'rhel-*').\n"
                  "You may want to specifiy the base branch (--base) manually.")
 
-    url = f'https://api.github.com/repos/osbuild/{repo}/pulls'
-    payload = {'head': f'{args.user}:release-{args.version}',
-               'base': args.base,
-               'title': f'Prepare release {args.version}',
-               'body': 'Tasks:\n- Bump version\n-Update news',
-               }
+    title = f'Prepare release {args.version}'
+    head = f'{args.user}:release-{args.version}'
+    body= 'Tasks:\n[] Bump version\n[] Update news'
 
-    r = requests.post(url, json=payload, auth=(args.user, args.token))
-    if r.status_code == 201:
-        msg_ok(f"Pull request successfully created: {r.json()['url']}")
-    else:
-        msg_error(f"Failed to create pull request: {r.status_code}")
+    api.pulls.create(title, head, args.base, body, True, False, None)
 
 
 def print_config(args, repo):
@@ -338,7 +329,7 @@ def print_config(args, repo):
           f"  Remote:        {args.remote}\n")
 
 
-def release_playbook(args, repo):
+def release_playbook(args, repo, api):
     """Execute all steps of the release playbook"""
     # FIXME: Currently this step silently fails if the release branch exists but is not checked out
     if "release" not in args.base:
@@ -348,7 +339,7 @@ def release_playbook(args, repo):
 
     a = step("Update the NEWS.md file", None, None)
     if a != "skipped":
-        update_news(args, repo)
+        update_news(args, repo, api)
 
     step(f"Make the notes in NEWS.md release ready using {args.editor}", None, None)
     subprocess.call([f'{args.editor}', 'NEWS.md'])
@@ -379,7 +370,7 @@ def release_playbook(args, repo):
 
     a = step(f"Create a pull request on GitHub for user {args.user}", None, None)
     if a != "skipped":
-        create_pullrequest(args, repo)
+        create_pullrequest(args, api)
 
     step("Has the upstream pull request been merged?", None, None)
 
@@ -426,10 +417,12 @@ def main():
 
     msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 
+    api = GhApi(repo=repo, owner='osbuild', token=token)
+
     print_config(args, repo)
 
     # Run the release playbook
-    release_playbook(args, repo)
+    release_playbook(args, repo, api)
 
 
 if __name__ == "__main__":
