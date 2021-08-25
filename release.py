@@ -319,14 +319,16 @@ def create_pullrequest(args, api):
 
 
 def print_config(args, repo):
-    print(f"{fg.BOLD}Release:{fg.RESET}\n"
+    print("\n--------------------------------\n"
+          f"{fg.BOLD}Release:{fg.RESET}\n"
           f"  Component:     {repo}\n"
           f"  Version:       {args.version}\n"
           f"  Base branch:   {args.base}\n"
           f"{fg.BOLD}GitHub{fg.RESET}:\n"
           f"  User:          {args.user}\n"
           f"  Token:         {bool(args.token)}\n"
-          f"  Remote:        {args.remote}\n")
+          f"  Remote:        {args.remote}\n"
+           "--------------------------------\n")
 
 
 def release_playbook(args, repo, api):
