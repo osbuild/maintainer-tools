@@ -203,7 +203,7 @@ def get_pullrequest_infos(api, milestone):
             msg = f"  * {pr.title}: {pr.body}"
         summaries.append(msg)
 
-    msg_ok(f"Collected summaries from {i} pull requests.")
+    msg_ok(f"Collected summaries from {i+1} pull requests.")
     return "\n\n".join(summaries)
 
 
