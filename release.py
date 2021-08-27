@@ -316,7 +316,7 @@ def create_pullrequest(args, api):
 
     title = f'Prepare release {args.version}'
     head = f'{args.user}:release-{args.version}'
-    body= 'Tasks:\n[] Bump version\n[] Update news'
+    body= 'Tasks:\n- [ ] Bump version\n- [ ] Update news'
 
     api.pulls.create(title, head, args.base, body, True, False, None)
 
