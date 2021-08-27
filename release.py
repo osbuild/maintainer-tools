@@ -257,7 +257,7 @@ def update_news_composer(args):
     for file in files:
         if file != ".gitkeep":
             shutil.move(os.path.join(src,file), target)
-    msg_info(f"Content of docs/news/{args.version}:\n{run_command()}")
+    msg_info(f"Content of docs/news/{args.version}:\n{run_command(['ls',f'docs/news/{args.version}'])}")
 
     step(f"Update NEWS.md with information from the markdown files in 'docs/news/{args.version}'", None, None)
     summaries = get_unreleased(args.version)
