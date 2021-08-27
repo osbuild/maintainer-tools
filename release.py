@@ -14,7 +14,6 @@ import os
 import shutil
 import getpass
 from re import search
-import requests
 from datetime import date
 from ghapi.all import GhApi
 
@@ -433,7 +432,7 @@ def main():
 
     msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 
-    api = GhApi(repo=repo, owner='osbuild', token=token)
+    api = GhApi(repo=repo, owner='osbuild', token=args.token)
 
     print_config(args, repo)
 
