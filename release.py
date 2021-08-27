@@ -250,13 +250,14 @@ def update_news_osbuild(args, api):
 
 def update_news_composer(args):
     """Update the NEWS file for osbuild-composer"""
-    src = 'docs/news/unreleased'
+    src = 'docs/news/unreleased/'
     target = f'docs/news/{args.version}'
-    step(f"Create '{target}' for this release and move all unreleased .md files to it", None, None)
+    step(f"Create '{target}' for this release and move all unreleased .md files to it", ['mkdir', '-p', target], ['ls', '-d', target])
     files = os.listdir(src)
     for file in files:
-        shutil.move(os.path.join(src,file), target)
-    msg_info(f"Content of docs/news/{args.version}:\n{run_command(['ls',f'docs/news/{args.version}'])}")
+        if file != ".gitkeep":
+            shutil.move(os.path.join(src,file), target)
+    msg_info(f"Content of docs/news/{args.version}:\n{run_command()}")
 
     step(f"Update NEWS.md with information from the markdown files in 'docs/news/{args.version}'", None, None)
     summaries = get_unreleased(args.version)
