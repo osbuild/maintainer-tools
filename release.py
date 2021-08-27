@@ -225,7 +225,10 @@ def get_unreleased(version):
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     for file in files:
         with open(f'docs/news/{version}/{file}', 'r') as md:
-            summaries += md.read() + "\n"
+            lines = md.readlines()
+            for line in lines:
+                if "# " in line:
+                    summaries += line.replace("# ", "  * ") + "\n"
 
     return summaries
 
