@@ -206,12 +206,12 @@ def get_pullrequest_infos(api, milestone):
     return "\n\n".join(summaries)
 
 
-def get_contributors(version):
+def get_contributors():
     tag = run_command(['git', 'describe', '--abbrev=0'])
     contributors = run_command(["git", "log", '--format="%an"', f"{tag}..HEAD"])
     contributor_list = contributors.replace('"', '').split("\n")
     names = ""
-    for name in set(sorted(contributor_list)):
+    for name in sorted(set(contributor_list)):
         if name != "":
             names += f"{name}, "
 
@@ -227,7 +227,7 @@ def get_unreleased(version):
             lines = md.readlines()
             for line in lines:
                 if "# " in line:
-                    summaries += line.replace("# ", "  * ") + "\n"
+                    summaries += line.replace("# ", "  * ")
 
     return summaries
 
@@ -269,7 +269,7 @@ def update_news_composer(args):
 def update_news(args, repo, api):
     """Update the NEWS file"""
     today = date.today()
-    contributors = get_contributors(args.version)
+    contributors = get_contributors()
 
     if repo == "osbuild":
         summaries = update_news_osbuild(args, api)
@@ -283,7 +283,7 @@ def update_news(args, repo, api):
 
         with open(filename, 'w') as file:
             file.write(f"## CHANGES WITH {args.version}:\n\n"
-                       f"{summaries}"
+                       f"{summaries}\n"
                        f"Contributions from: {contributors}\n\n"
                        f"— Location, {today.strftime('%Y-%m-%d')}\n\n"
                        f"{content}")
