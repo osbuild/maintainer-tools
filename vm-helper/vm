@@ -58,6 +58,7 @@ def main():
     parser.add_argument("--memory", default=2048, help="Memory of the machine")
     parser.add_argument("--persist", default=False, action="store_true")
     parser.add_argument("--verbose", default=False, action="store_true")
+    parser.add_argument("--cdrom", type=str, help="CD-ROM to use (disables cloud init)")
     parser.add_argument("image", type=str, help="The image to boot")
     parser.set_defaults(architecture="x86_64")
     subparsers = parser.add_subparsers(help="commands")
@@ -165,10 +166,14 @@ def main():
 
     print(f"MAC: {BOLD}{macstr}{RESET}")
 
+    cdrom = argv.get("cdrom")
+    if not cdrom:
+        cdrom = f"{rundir}/cloudinit.iso"
+
     args += [
         "-m", str(argv["memory"]),
         "-drive", "file=%s" % argv["image"],
-        "-cdrom", f"{rundir}/cloudinit.iso",
+        "-cdrom", cdrom,
         "-device", f"virtio-net-pci,netdev=n0,mac={macstr}",
         "-netdev", "user,id=n0,net=10.0.2.0/24," + ",".join(fwds),
     ] + extra
