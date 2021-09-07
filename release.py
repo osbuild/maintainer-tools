@@ -326,6 +326,14 @@ def create_release(args, api):
                              f"## CHANGES WITH {args.version}", False, False, None)
 
 
+def show_release_branches(args):
+    branches = run_command(['git','branch']).split()
+    for branch in branches:
+        if f"release-{args.version}" in branch:
+            msg_error(f"The release branch 'release-{args.version}' already exists but is not checked out.\n"
+                      "       Consider deleting the branch if it's not clean or check it out.")
+
+
 def print_config(args, repo):
     print("\n--------------------------------\n"
           f"{fg.BOLD}Release:{fg.RESET}\n"
@@ -341,8 +349,8 @@ def print_config(args, repo):
 
 def release_playbook(args, repo, api):
     """Execute all steps of the release playbook"""
-    # FIXME: Currently this step silently fails if the release branch exists but is not checked out
     if "release" not in args.base:
+        show_release_branches(args)
         step(f"Check out a new branch for the release {args.version}",
              ['git', 'checkout', '-b', f'release-{args.version}'],
              ['git','branch','--show-current'])
