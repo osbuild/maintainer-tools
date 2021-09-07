@@ -112,7 +112,7 @@ def guess_remote(repo):
     origin = f"github.com[/:]osbuild/{repo}.git"
     remotes = run_command(['git', 'remote']).split("\n")
     if len(remotes) > 2:
-        msg_info("You have more than two 'git remotes' specified, so guessing the correct one will most likely fail.\n"
+        msg_info("You have more than two 'git remotes' specified, so guessing which one is your fork (i.e. where to create the pull request from) will most likely fail.\n"
                  "Please use the --remote argument to set the correct one.\n"
                  f"{remotes}")
 
