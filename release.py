@@ -107,20 +107,17 @@ def autoincrement_version():
     return version
 
 
-def guess_remote(repo):
+def guess_remote(repo, remotes):
     """Guess the git remote to push the release changes to"""
     origin = f"github.com[/:]osbuild/{repo}.git"
-    remotes = run_command(['git', 'remote']).split("\n")
+
     if len(remotes) > 2:
-        msg_info("You have more than two 'git remotes' specified, so guessing which one is your fork (i.e. where to create the pull request from) will most likely fail.\n"
-                 "Please use the --remote argument to set the correct one.\n"
-                 f"{remotes}")
+        return None
 
     for remote in remotes:
         remote_url = run_command(['git', 'remote', 'get-url', f'{remote}'])
         if search(origin, remote_url) is None:
             return remote
-    return None
 
 
 def detect_github_token():
@@ -410,7 +407,8 @@ def main():
     repo = os.path.basename(os.getcwd())
     current_branch = sanity_checks(repo)
     version = autoincrement_version()
-    remote = guess_remote(repo)
+    remotes = run_command(['git', 'remote']).split()
+    remote = guess_remote(repo, remotes)
     username = getpass.getuser()
     # FIXME: Currently only works with GUI editors (e.g. not with vim)
     token = detect_github_token()
@@ -429,6 +427,10 @@ def main():
     parser.add_argument(
         "-b", "--base", help=f"Set the base branch that the release targets (Default: {current_branch})", default=current_branch)
     args = parser.parse_args()
+
+    if len(remotes) > 2 and args.remote is None:
+        msg_error("You have more than two 'git remotes' specified, so guessing where to create the pull request from would likely fail.\n"
+                 f"       Please use the --remote argument to set the correct one: {remotes}")
 
     msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 
