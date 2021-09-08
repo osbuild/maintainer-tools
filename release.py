@@ -1,8 +1,7 @@
 #!/usr/bin/python3
 
-#
-# Step interactively through the release process for osbuild
-#
+"""Step interactively through the release process for osbuild"""
+
 # Requires: pip install ghapi (https://ghapi.fast.ai/)
 
 import argparse
@@ -18,7 +17,8 @@ from datetime import date
 from ghapi.all import GhApi
 
 
-class fg:
+class fg: #pylint: disable=too-few-public-methods
+    """Set of constants to print colored output in the terminal"""
     BOLD = '\033[1m'  # bold
     OK = '\033[32m'  # green
     INFO = '\033[33m'  # yellow
@@ -27,23 +27,26 @@ class fg:
 
 
 def msg_error(body):
+    """Print error and exit"""
     print(f"{fg.ERROR}{fg.BOLD}Error:{fg.RESET} {body}")
     sys.exit(1)
 
 
 def msg_info(body):
+    """Print info message"""
     print(f"{fg.INFO}{fg.BOLD}Info:{fg.RESET} {body}")
 
 
 def msg_ok(body):
+    """Print ok status message"""
     print(f"{fg.OK}{fg.BOLD}OK:{fg.RESET} {body}")
 
 
 def sanity_checks(repo):
+    """Check if we are in a git repo, on the right branch and up-to-date"""
     if "osbuild" not in repo:
         msg_info("This script is only tested with 'osbuild' and 'osbuild-composer'.")
 
-    """Check if we are in a git repo, on the right branch and up-to-date"""
     is_git = run_command(['git', 'rev-parse', '--is-inside-work-tree'])
     if is_git != "true":
         msg_error("This is not a git repository.")
@@ -67,7 +70,7 @@ def sanity_checks(repo):
 
 def run_command(argv):
     """Run a shellcommand and return stdout"""
-    result = subprocess.run(
+    result = subprocess.run( # pylint: disable=subprocess-run-check
         argv,
         capture_output=True,
         text=True,
@@ -76,7 +79,8 @@ def run_command(argv):
 
 
 def step(action, args, verify):
-    """Ask the user for confirmation on whether to accept (y) or skip (s) the step or cancel (N) the playbook"""
+    """Ask the user whether to accept (y) or skip (s) the step or cancel (N) the playbook"""
+    ret = None
     feedback = input(f"{fg.BOLD}Step: {fg.RESET}{action} [y/s/N] ")
     if feedback == "y":
         if args is not None:
@@ -85,13 +89,14 @@ def step(action, args, verify):
                 out = run_command(verify)
 
             msg_ok(f"\n{out}")
-        return None
     elif feedback == "s":
         msg_info("Step skipped.")
-        return "skipped"
+        ret = "skipped"
     else:
         msg_info("Release playbook canceled.")
         sys.exit(0)
+
+    return ret
 
 
 def autoincrement_version():
@@ -99,7 +104,7 @@ def autoincrement_version():
     latest_tag = run_command(['git', 'describe', '--abbrev=0'])
     if latest_tag == "":
         msg_info("There are no tags yet in this repository.")
-        return "1"
+        version = "1"
     elif "." in latest_tag:
         version = latest_tag.replace("v", "").split(".")[0] + "." + str(int(latest_tag[-1]) + 1)
     else:
@@ -119,8 +124,11 @@ def guess_remote(repo, remotes):
         if search(origin, remote_url) is None:
             return remote
 
+    return None
+
 
 def detect_github_token():
+    """Check if a GitHub token is available"""
     token = os.getenv("GITHUB_TOKEN")
     if token:
         msg_info("Using token from '$GITHUB_TOKEN'")
@@ -128,9 +136,9 @@ def detect_github_token():
 
     path = os.path.expanduser("~/.config/packit.yaml")
     with contextlib.suppress(FileNotFoundError, ImportError):
-        import yaml  # pylint disable=import-outside-toplevel
-        with open(path, 'r') as f:
-            data = yaml.safe_load(f)
+        import yaml  # pylint: disable=import-outside-toplevel
+        with open(path, 'r') as file:
+            data = yaml.safe_load(file)
             token = data["authentication"]["github.com"]["token"]
             msg_info("Using token from '~/.config/packit.yaml'")
             return token
@@ -139,6 +147,7 @@ def detect_github_token():
 
 
 def get_milestone(api, version):
+    """Get the milestone id based on its version number"""
     milestones = api.issues.list_milestones()
     for milestone in milestones:
         if str(version) in milestone.title:
@@ -148,6 +157,7 @@ def get_milestone(api, version):
 
 
 def list_prs_for_milestone(api, milestone):
+    """List all pull requests for a given milestone id"""
     query = f'milestone:"{milestone.title}" type:pr repo:osbuild/osbuild'
     count = 0
 
@@ -158,10 +168,10 @@ def list_prs_for_milestone(api, milestone):
         if not res:
             break
 
-        for r in items:
-            if r.state != "closed":
+        for item in items:
+            if item.state != "closed":
                 continue
-            yield r
+            yield item
 
         count += len(items)
         if count == res.total_count:
@@ -169,14 +179,16 @@ def list_prs_for_milestone(api, milestone):
 
 
 def get_pullrequest_infos(api, milestone):
-    import mistune  # pylint disable=import-outside-toplevel
+    """Fetch the summaries of the pull requests"""
+    import mistune  # pylint: disable=import-outside-toplevel
 
     class NotesRenderer(mistune.Renderer):
+        """Renderer for the release notes"""
         def __init__(self) -> None:
             super().__init__()
             self.in_notes = False
 
-        def block_code(self, code, _lang):
+        def block_code(self, code, _lang): # pylint: disable=signature-differs
             if self.in_notes:
                 self.in_notes = False
                 return code
@@ -187,15 +199,16 @@ def get_pullrequest_infos(api, milestone):
             return ""
 
     summaries = []
+    i = 0
 
     renderer = NotesRenderer()
     markdown = mistune.Markdown(renderer=renderer)
 
-    for i, pr in enumerate(list_prs_for_milestone(api, milestone)):
-        msg = markdown(pr.body)
-        print(f" * {pr.url}")
+    for i, pull_request in enumerate(list_prs_for_milestone(api, milestone)):
+        msg = markdown(pull_request.body)
+        print(f" * {pull_request.url}")
         if not msg:
-            msg = f"  * {pr.title}: {pr.body}"
+            msg = f"  * {pull_request.title}: {pull_request.body}"
         summaries.append(msg)
 
     msg_ok(f"Collected summaries from {i+1} pull requests.")
@@ -203,6 +216,7 @@ def get_pullrequest_infos(api, milestone):
 
 
 def get_contributors():
+    """Collect all contributors to a release based on the git history"""
     tag = run_command(['git', 'describe', '--abbrev=0'])
     contributors = run_command(["git", "log", '--format="%an"', f"{tag}..HEAD"])
     contributor_list = contributors.replace('"', '').split("\n")
@@ -215,12 +229,13 @@ def get_contributors():
 
 
 def get_unreleased(version):
+    """Get all unreleased .md files and return their content"""
     summaries = ""
     path = f'docs/news/{version}'
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     for file in files:
-        with open(f'docs/news/{version}/{file}', 'r') as md:
-            lines = md.readlines()
+        with open(f'docs/news/{version}/{file}', 'r') as markdown:
+            lines = markdown.readlines()
             for line in lines:
                 if "# " in line:
                     summaries += line.replace("# ", "  * ")
@@ -230,34 +245,39 @@ def get_unreleased(version):
 
 def update_news_osbuild(args, api):
     """Update the NEWS file for osbuild"""
-    a = step(f"Update NEWS.md with pull request summaries for milestone {args.version}", None, None)
-    if a == "skipped":
+    res = step(f"Update NEWS.md with pull request summaries for milestone {args.version}",
+               None, None)
+    if res == "skipped":
         return ""
 
     if args.token is None:
         msg_info("You have not passed a token so you may run into GitHub rate limiting.")
 
+    summaries = ""
     milestone = get_milestone(api, args.version)
     if milestone is None:
         msg_info(f"Couldn't find a milestone for version {args.version}")
-        return ""
     else:
         summaries = get_pullrequest_infos(api, milestone)
-        return summaries
+
+    return summaries
 
 
 def update_news_composer(args):
     """Update the NEWS file for osbuild-composer"""
     src = 'docs/news/unreleased/'
     target = f'docs/news/{args.version}'
-    step(f"Create '{target}' for this release and move all unreleased .md files to it", ['mkdir', '-p', target], ['ls', '-d', target])
+    step(f"Create '{target}' for this release and move all unreleased .md files to it",
+         ['mkdir', '-p', target], ['ls', '-d', target])
     files = os.listdir(src)
     for file in files:
         if file != ".gitkeep":
             shutil.move(os.path.join(src,file), target)
-    msg_info(f"Content of docs/news/{args.version}:\n{run_command(['ls',f'docs/news/{args.version}'])}")
+    msg_info(f"Content of docs/news/{args.version}:\n"
+             "{run_command(['ls',f'docs/news/{args.version}'])}")
 
-    step(f"Update NEWS.md with information from the markdown files in 'docs/news/{args.version}'", None, None)
+    step(f"Update NEWS.md with information from the markdown files in 'docs/news/{args.version}'",
+         None, None)
     summaries = get_unreleased(args.version)
     return summaries
 
@@ -271,9 +291,9 @@ def update_news(args, repo, api):
         summaries = update_news_osbuild(args, api)
     elif repo == "osbuild-composer":
         summaries = update_news_composer(args)
-    
+
     filename = "NEWS.md"
-    if (os.path.exists(filename)):
+    if os.path.exists(filename):
         with open(filename, 'r') as file:
             content = file.read()
 
@@ -303,12 +323,13 @@ def bump_version(version, filename):
 def create_pullrequest(args, api):
     """Create a pull request on GitHub from the fork to the main repository"""
     if args.user is None or args.token is None:
-        msg_error("Missing credentials for GitHub. Without a token you cannot create a pull request.")
+        msg_error("Missing credentials for GitHub.\n"
+                  "       Without a token you cannot create a pull request.")
 
     if "release" in args.base:
         msg_info("You are probably re-executing this script, trying to create a pull request"
                  f"against a '{args.base}' (expected: 'main' or 'rhel-*').\n"
-                 "You may want to specifiy the base branch (--base) manually.")
+                 "       You may want to specifiy the base branch (--base) manually.")
 
     title = f'Prepare release {args.version}'
     head = f'{args.user}:release-{args.version}'
@@ -318,19 +339,23 @@ def create_pullrequest(args, api):
 
 
 def create_release(args, api):
+    """Create a release on GitHub"""
     api.repos.create_release(f'v{args.version}', None, f'{args.version}',
                              f"## CHANGES WITH {args.version}", False, False, None)
 
 
 def show_release_branches(args):
+    """Check if a release branch already exists"""
     branches = run_command(['git','branch']).split()
     for branch in branches:
         if f"release-{args.version}" in branch:
-            msg_error(f"The release branch 'release-{args.version}' already exists but is not checked out.\n"
+            msg_error(f"The release branch 'release-{args.version}' already exists "
+                      "but is not checked out.\n"
                       "       Consider deleting the branch if it's not clean or check it out.")
 
 
 def print_config(args, repo):
+    """Print the values used for the release playbook"""
     print("\n--------------------------------\n"
           f"{fg.BOLD}Release:{fg.RESET}\n"
           f"  Component:     {repo}\n"
@@ -351,16 +376,16 @@ def release_playbook(args, repo, api):
              ['git', 'checkout', '-b', f'release-{args.version}'],
              ['git','branch','--show-current'])
 
-    a = step("Update the NEWS.md file", None, None)
-    if a != "skipped":
+    res = step("Update the NEWS.md file", None, None)
+    if res != "skipped":
         update_news(args, repo, api)
 
-    a = step(f"Make the notes in NEWS.md release ready using {args.editor}", None, None)
-    if a != "skipped":
+    res = step(f"Make the notes in NEWS.md release ready using {args.editor}", None, None)
+    if res != "skipped":
         subprocess.call([f'{args.editor}', 'NEWS.md'])
 
-    a = step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None, None)
-    if a != "skipped":
+    res = step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None, None)
+    if res != "skipped":
         bump_version(args.version, f"{repo}.spec")
         if repo == "osbuild":
             bump_version(args.version, "setup.py")
@@ -373,8 +398,9 @@ def release_playbook(args, repo, api):
              ['git', 'commit', f'{repo}.spec', 'NEWS.md', 'setup.py',
               '-s', '-m', f'{args.version}', '-m', f'Release osbuild {args.version}'], None)
     elif repo == "osbuild-composer":
-        a = step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)", None, None)
-        if a != "skipped":
+        res = step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
+                   None, None)
+        if res != "skipped":
             run_command(['git', 'add', 'docs/news'])
             run_command(['git', 'commit', f'{repo}.spec', 'NEWS.md',
                         'docs/news/unreleased', f'docs/news/{args.version}', '-s',
@@ -383,14 +409,14 @@ def release_playbook(args, repo, api):
     step(f"Push all release changes to the remote '{args.remote}'",
          ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'], None)
 
-    a = step(f"Create a pull request on GitHub for user {args.user}", None, None)
-    if a != "skipped":
+    res = step(f"Create a pull request on GitHub for user {args.user}", None, None)
+    if res != "skipped":
         create_pullrequest(args, api)
 
     step("Has the upstream pull request been merged?", None, None)
 
-    a = step("Switch back to the main branch from upstream and update it", None, None)
-    if a != "skipped":
+    res = step("Switch back to the main branch from upstream and update it", None, None)
+    if res != "skipped":
         run_command(['git','checkout',args.base])
         run_command(['git','pull'])
         msg_info(f"You are currently on branch: {run_command(['git','branch','--show-current'])}")
@@ -398,18 +424,16 @@ def release_playbook(args, repo, api):
     step(f"Tag the release with version 'v{args.version}'",
          ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'],
          ['git','describe',f'v{args.version}'])
-    # TODO: Use something like git show HEAD to make sure the tag was created (fails e.g. on missing pgp key)
 
     step("Push the release tag upstream", ['git', 'push', f'v{args.version}'], None)
 
-    a = step("Create the release on GitHub", None, None)
-    if a != "skipped":
+    res = step("Create the release on GitHub", None, None)
+    if res != "skipped":
         create_release(args, api)
-
-    # TODO: Create a release on github
 
 
 def main():
+    """main loop"""
     # Get some basic fallback/default values
     repo = os.path.basename(os.getcwd())
     current_branch = sanity_checks(repo)
@@ -417,26 +441,34 @@ def main():
     remotes = run_command(['git', 'remote']).split()
     remote = guess_remote(repo, remotes)
     username = getpass.getuser()
-    # FIXME: Currently only works with GUI editors (e.g. not with vim)
     token = detect_github_token()
-    editor = run_command(['git', 'config', '--default', '"${EDITOR:-gedit}"', '--global', 'core.editor'])
+    editor = os.getenv('EDITOR')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-v", "--version", help=f"Set the version for the release (Default: {version})", default=version)
+    parser.add_argument("-v", "--version",
+                        help=f"Set the version for the release (Default: {version})",
+                        default=version)
     parser.add_argument(
-        "-r", "--remote", help=f"Set the git remote on GitHub to push the release changes to (Default: {remote})",
+        "-r", "--remote",
+        help=f"Set the git remote on GitHub to push the release changes to (Default: {remote})",
         default=remote)
-    parser.add_argument("-u", "--user", help=f"Set the username on GitHub (Default: {username})", default=username)
-    parser.add_argument("-t", "--token", help=f"Set the GitHub token used to authenticate (token found: {bool(token)})", default=token)
+    parser.add_argument("-u", "--user", help=f"Set the username on GitHub (Default: {username})",
+                        default=username)
+    parser.add_argument("-t", "--token", help=f"Set the GitHub token (token found: {bool(token)})",
+                        default=token)
     parser.add_argument(
-        "-e", "--editor", help=f"Set which editor shall be used for editing text (e.g. NEWS) files (Default: {editor})",
+        "-e", "--editor",
+        help=f"Set which editor shall be used to edit NEWS.md (Default: {editor})",
         default=editor)
     parser.add_argument(
-        "-b", "--base", help=f"Set the base branch that the release targets (Default: {current_branch})", default=current_branch)
+        "-b", "--base",
+        help=f"Set the base branch that the release targets (Default: {current_branch})",
+        default=current_branch)
     args = parser.parse_args()
 
     if len(remotes) > 2 and args.remote is None:
-        msg_error("You have more than two 'git remotes' specified, so guessing where to create the pull request from would likely fail.\n"
+        msg_error("You have more than two 'git remotes' specified, so guessing where to "
+                  "create the pull request from would likely fail.\n"
                  f"       Please use the --remote argument to set the correct one: {remotes}")
 
     msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
