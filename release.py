@@ -431,6 +431,14 @@ def release_playbook(args, repo, api):
     if res != "skipped":
         create_release(args, api)
 
+    step(f"Merge the pull request in Fedora: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
+         None, None)
+
+    step("Get a Kerberos ticket for Fedora", ['kinit',f'{os.getenv("USER")}@FEDORAPROJECT.ORG'],
+         ['klist'])
+
+    step("Schedule a build with Koji", ['packit', 'build'], None)
+
 
 def main():
     """Main function"""
