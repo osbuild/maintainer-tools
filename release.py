@@ -154,7 +154,6 @@ def list_prs_for_milestone(api, milestone):
     for i in itertools.count():
         res = api.search.issues_and_pull_requests(q=query, per_page=20, page=i)
         items = res["items"]
-        print(res.total_count, i, len(items), count)
 
         if not res:
             break
