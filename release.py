@@ -14,6 +14,8 @@ import shutil
 import getpass
 from re import search
 from datetime import date
+import yaml
+import mistune
 from ghapi.all import GhApi
 
 
@@ -136,7 +138,6 @@ def detect_github_token():
 
     path = os.path.expanduser("~/.config/packit.yaml")
     with contextlib.suppress(FileNotFoundError, ImportError):
-        import yaml  # pylint: disable=import-outside-toplevel
         with open(path, 'r') as file:
             data = yaml.safe_load(file)
             token = data["authentication"]["github.com"]["token"]
@@ -180,7 +181,6 @@ def list_prs_for_milestone(api, milestone):
 
 def get_pullrequest_infos(api, milestone):
     """Fetch the summaries of the pull requests"""
-    import mistune  # pylint: disable=import-outside-toplevel
 
     class NotesRenderer(mistune.Renderer):
         """Renderer for the release notes"""
