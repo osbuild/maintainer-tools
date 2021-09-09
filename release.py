@@ -433,7 +433,7 @@ def release_playbook(args, repo, api):
 
 
 def main():
-    """main loop"""
+    """Main function"""
     # Get some basic fallback/default values
     repo = os.path.basename(os.getcwd())
     current_branch = sanity_checks(repo)
