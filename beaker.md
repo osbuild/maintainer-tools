@@ -1,4 +1,4 @@
-###### Some notes & commands for beaker that I gathered
+# Some notes & commands for beaker that I gathered
 
 * You need to create an account by going to https://beaker.engineering.redhat.com/ with VPN on and kerberos ticket and just clicking login or something, it should be a  simple 1-click.
 * If you plan to use the command-line, then you can install it according to  these instructions and it will work with kerberos also, https://docs.engineering.redhat.com/display/HTD/beaker.engineering.redhat.com+User+Guide#beaker.engineering.redhat.comUserGuide-Command-lineclient
