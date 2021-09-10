@@ -138,7 +138,7 @@ def detect_github_token():
 
     path = os.path.expanduser("~/.config/packit.yaml")
     with contextlib.suppress(FileNotFoundError, ImportError):
-        with open(path, 'r') as file:
+        with open(path, 'r', encoding='utf-8') as file:
             data = yaml.safe_load(file)
             token = data["authentication"]["github.com"]["token"]
             msg_info("Using token from '~/.config/packit.yaml'")
@@ -234,7 +234,7 @@ def get_unreleased(version):
     path = f'docs/news/{version}'
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     for file in files:
-        with open(f'docs/news/{version}/{file}', 'r') as markdown:
+        with open(f'docs/news/{version}/{file}', 'r', encoding='utf-8') as markdown:
             lines = markdown.readlines()
             for line in lines:
                 if "# " in line:
@@ -294,10 +294,10 @@ def update_news(args, repo, api):
 
     filename = "NEWS.md"
     if os.path.exists(filename):
-        with open(filename, 'r') as file:
+        with open(filename, 'r', encoding='utf-8') as file:
             content = file.read()
 
-        with open(filename, 'w') as file:
+        with open(filename, 'w', encoding='utf-8') as file:
             file.write(f"## CHANGES WITH {args.version}:\n\n"
                        f"{summaries}\n"
                        f"Contributions from: {contributors}\n\n"
@@ -310,13 +310,13 @@ def update_news(args, repo, api):
 def bump_version(version, filename):
     """Bump the version in a file"""
     latest_tag = run_command(['git', 'describe', '--abbrev=0'])
-    with open(filename, 'r') as file:
+    with open(filename, 'r', encoding='utf-8') as file:
         content = file.read()
 
     # Maybe use re.sub in case the version appears a second time in the spec file
     content = content.replace(latest_tag.replace("v", ""), str(version))
 
-    with open(filename, 'w') as file:
+    with open(filename, 'w', encoding='utf-8') as file:
         file.write(content)
 
 
