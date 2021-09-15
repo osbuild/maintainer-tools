@@ -12,7 +12,7 @@ import sys
 import os
 import shutil
 import getpass
-from re import search
+from re import search, sub
 from datetime import date
 import yaml
 import mistune
@@ -314,7 +314,8 @@ def bump_version(version, filename):
         content = file.read()
 
     # Maybe use re.sub in case the version appears a second time in the spec file
-    content = content.replace(latest_tag.replace("v", ""), str(version))
+    old_ver = latest_tag.replace("v", "")
+    content = sub(f'\\b{old_ver}\\b', str(version), content)
 
     with open(filename, 'w', encoding='utf-8') as file:
         file.write(content)
