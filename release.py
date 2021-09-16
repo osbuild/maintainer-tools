@@ -313,9 +313,8 @@ def bump_version(version, filename):
     with open(filename, 'r', encoding='utf-8') as file:
         content = file.read()
 
-    # Maybe use re.sub in case the version appears a second time in the spec file
     old_ver = latest_tag.replace("v", "")
-    content = sub(f'\\b{old_ver}\\b', str(version), content)
+    content = sub(f'(Version:\\s+){old_ver}\\b', f'\g<1>{str(version)}', content)
 
     with open(filename, 'w', encoding='utf-8') as file:
         file.write(content)
