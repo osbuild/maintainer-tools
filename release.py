@@ -314,7 +314,7 @@ def bump_version(version, filename):
         content = file.read()
 
     old_ver = latest_tag.replace("v", "")
-    content = sub(f'(Version:\\s+){old_ver}\\b', f'\g<1>{str(version)}', content)
+    content = sub(fr'(Version:\s+){old_ver}\b', fr'\g<1>{str(version)}', content)
 
     with open(filename, 'w', encoding='utf-8') as file:
         file.write(content)
