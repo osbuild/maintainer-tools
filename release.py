@@ -335,13 +335,23 @@ def create_pullrequest(args, api):
     head = f'{args.user}:release-{args.version}'
     body= 'Tasks:\n- [ ] Bump version\n- [ ] Update news'
 
-    api.pulls.create(title, head, args.base, body, True, False, None)
+    try:
+        res = api.pulls.create(title, head, args.base, body, True, False, None)
+        msg_ok(f"Pull request successfully created: {res.html_url}")
+    except Exception as e: # pylint: disable=broad-except
+        print(e)
+        msg_error("Could not create pull request.")
 
 
 def create_release(args, api):
     """Create a release on GitHub"""
-    api.repos.create_release(f'v{args.version}', None, f'{args.version}',
-                             f"## CHANGES WITH {args.version}", False, False, None)
+    try:
+        res = api.repos.create_release(f'v{args.version}', None, f'{args.version}',
+                                       f"## CHANGES WITH {args.version}", False, False, None)
+        msg_ok(f"Release successfully created: {res.html_url}")
+    except Exception as e: # pylint: disable=broad-except
+        print(e)
+        msg_error("Could not create release on GitHub.")
 
 
 def show_release_branches(args):
