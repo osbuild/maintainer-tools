@@ -12,7 +12,7 @@ import sys
 import os
 import shutil
 import getpass
-from re import search, sub
+from re import search
 from datetime import date
 import yaml
 import mistune
@@ -311,14 +311,14 @@ def bump_version(version, filename):
     """Bump the version in a file"""
     latest_tag = run_command(['git', 'describe', '--abbrev=0'])
     with open(filename, 'r', encoding='utf-8') as file:
-        content = file.read()
+        lines = file.readlines()
 
-    old_ver = latest_tag.replace("v", "")
-    content = sub(fr'(Version:\s+){old_ver}\b', fr'\g<1>{str(version)}', content)
+    lines = [l.replace(latest_tag.replace("v", ""), str(version))
+             if l.startswith("Version:") else l
+             for l in lines]
 
     with open(filename, 'w', encoding='utf-8') as file:
-        file.write(content)
-
+        file.writelines(lines)
 
 def create_pullrequest(args, api):
     """Create a pull request on GitHub from the fork to the main repository"""
