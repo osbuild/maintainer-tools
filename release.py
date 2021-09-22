@@ -306,11 +306,9 @@ def bump_version(args, repo):
     if repo == "osbuild":
         filenames.append("setup.py")
 
-    starts_with = "Version:"
+    starts_with = ("Version:", "    version=")
 
     for filename in filenames:
-        if filename == "setup.py":
-            starts_with = "    version="
         with open(filename, 'r', encoding='utf-8') as file:
             lines = file.readlines()
 
