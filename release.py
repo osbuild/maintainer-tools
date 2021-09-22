@@ -103,7 +103,7 @@ def step(action, args, verify):
 
 def autoincrement_version():
     """Bump the version of the latest git tag by 1"""
-    latest_tag = run_command(['git', 'describe', '--abbrev=0'])
+    latest_tag = run_command(['git', 'describe', '--tags', '--abbrev=0'])
     if latest_tag == "":
         msg_info("There are no tags yet in this repository.")
         version = "1"
@@ -406,7 +406,8 @@ def release_playbook(args, repo, api):
     if repo == "osbuild":
         step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
              ['git', 'commit', f'{repo}.spec', 'NEWS.md', 'setup.py',
-              '-s', '-m', f'{args.version}', '-m', f'Release osbuild {args.version}'], None)
+              '-s', '-m', f'{args.version}', '-m', f'Release osbuild {args.version}','-m','[skip ci]'],
+             None)
     elif repo == "osbuild-composer":
         res = step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
                    None, None)
@@ -414,7 +415,8 @@ def release_playbook(args, repo, api):
             run_command(['git', 'add', 'docs/news'])
             run_command(['git', 'commit', f'{repo}.spec', 'NEWS.md',
                         'docs/news/unreleased', f'docs/news/{args.version}', '-s',
-                        '-m', f'{args.version}', '-m', f'Release osbuild-composer {args.version}'])
+                        '-m', f'{args.version}', '-m', f'Release osbuild-composer {args.version}',
+                        '-m','[skip ci]'])
 
     step(f"Push all release changes to the remote '{args.remote}'",
          ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'], None)
