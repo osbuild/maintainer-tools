@@ -103,7 +103,7 @@ def step(action, args, verify):
 
 def autoincrement_version():
     """Bump the version of the latest git tag by 1"""
-    latest_tag = run_command(['git', 'describe', '--abbrev=0'])
+    latest_tag = run_command(['git', 'describe', '--tags', '--abbrev=0'])
     if latest_tag == "":
         msg_info("There are no tags yet in this repository.")
         version = "1"
