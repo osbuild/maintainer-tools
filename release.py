@@ -101,9 +101,8 @@ def step(action, args, verify):
     return ret
 
 
-def autoincrement_version():
+def autoincrement_version(latest_tag):
     """Bump the version of the latest git tag by 1"""
-    latest_tag = run_command(['git', 'describe', '--tags', '--abbrev=0'])
     if latest_tag == "":
         msg_info("There are no tags yet in this repository.")
         version = "1"
@@ -215,10 +214,9 @@ def get_pullrequest_infos(api, milestone):
     return "\n\n".join(summaries)
 
 
-def get_contributors():
+def get_contributors(args):
     """Collect all contributors to a release based on the git history"""
-    tag = run_command(['git', 'describe', '--abbrev=0'])
-    contributors = run_command(["git", "log", '--format="%an"', f"{tag}..HEAD"])
+    contributors = run_command(["git", "log", '--format="%an"', f"{args.latest_tag}..HEAD"])
     contributor_list = contributors.replace('"', '').split("\n")
     names = ""
     for name in sorted(set(contributor_list)):
@@ -245,11 +243,6 @@ def get_unreleased(version):
 
 def update_news_osbuild(args, api):
     """Update the NEWS file for osbuild"""
-    res = step(f"Update NEWS.md with pull request summaries for milestone {args.version}",
-               None, None)
-    if res == "skipped":
-        return ""
-
     if args.token is None:
         msg_info("You have not passed a token so you may run into GitHub rate limiting.")
 
@@ -285,7 +278,7 @@ def update_news_composer(args):
 def update_news(args, repo, api):
     """Update the NEWS file"""
     today = date.today()
-    contributors = get_contributors()
+    contributors = get_contributors(args)
 
     if repo == "osbuild":
         summaries = update_news_osbuild(args, api)
@@ -307,18 +300,29 @@ def update_news(args, repo, api):
         print(f"Error: The file {filename} does not exist.")
 
 
-def bump_version(version, filename):
+def bump_version(args, repo):
     """Bump the version in a file"""
-    latest_tag = run_command(['git', 'describe', '--abbrev=0'])
-    with open(filename, 'r', encoding='utf-8') as file:
-        lines = file.readlines()
+    filenames = [f"{repo}.spec"]
+    if repo == "osbuild":
+        filenames.append("setup.py")
 
-    lines = [l.replace(latest_tag.replace("v", ""), str(version))
-             if l.startswith("Version:") else l
-             for l in lines]
+    starts_with = "Version:"
 
-    with open(filename, 'w', encoding='utf-8') as file:
-        file.writelines(lines)
+    for filename in filenames:
+        if filename == "setup.py":
+            starts_with = "    version="
+        with open(filename, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+
+        lines = [l.replace(args.latest_tag.replace("v", ""), str(args.version))
+                if l.startswith(starts_with) else l
+                for l in lines]
+
+        with open(filename, 'w', encoding='utf-8') as file:
+            file.writelines(lines)
+
+    msg_info(f"Bumped the version in {filenames}")
+
 
 def create_pullrequest(args, api):
     """Create a pull request on GitHub from the fork to the main repository"""
@@ -354,7 +358,7 @@ def create_release(args, api):
         msg_error("Could not create release on GitHub.")
 
 
-def show_release_branches(args):
+def release_branch(args):
     """Check if a release branch already exists"""
     branches = run_command(['git','branch']).split()
     for branch in branches:
@@ -362,6 +366,9 @@ def show_release_branches(args):
             msg_error(f"The release branch 'release-{args.version}' already exists "
                       "but is not checked out.\n"
                       "       Consider deleting the branch if it's not clean or check it out.")
+    run_command(['git', 'checkout', '-b', f'release-{args.version}'])
+    current_branch = run_command(['git','branch','--show-current'])
+    msg_ok(f"Checked out a new release branch '{current_branch}'")
 
 
 def print_config(args, repo):
@@ -381,10 +388,9 @@ def print_config(args, repo):
 def release_playbook(args, repo, api):
     """Execute all steps of the release playbook"""
     if "release" not in args.base:
-        show_release_branches(args)
-        step(f"Check out a new branch for the release {args.version}",
-             ['git', 'checkout', '-b', f'release-{args.version}'],
-             ['git','branch','--show-current'])
+        release_branch(args)
+
+    bump_version(args, repo)
 
     res = step("Update the NEWS.md file", None, None)
     if res != "skipped":
@@ -393,12 +399,6 @@ def release_playbook(args, repo, api):
     res = step(f"Make the notes in NEWS.md release ready using {args.editor}", None, None)
     if res != "skipped":
         subprocess.call([f'{args.editor}', 'NEWS.md'])
-
-    res = step(f"Bump the version where necessary ({repo}.spec, potentially setup.py)", None, None)
-    if res != "skipped":
-        bump_version(args.version, f"{repo}.spec")
-        if repo == "osbuild":
-            bump_version(args.version, "setup.py")
 
     print(f"{run_command(['git', 'diff'])}")
     step(f"Please review all changes {args.version}", None, None)
@@ -456,7 +456,8 @@ def main():
     # Get some basic fallback/default values
     repo = os.path.basename(os.getcwd())
     current_branch = sanity_checks(repo)
-    version = autoincrement_version()
+    latest_tag = run_command(['git', 'describe', '--tags', '--abbrev=0'])
+    version = autoincrement_version(latest_tag)
     remotes = run_command(['git', 'remote']).split()
     remote = guess_remote(repo, remotes)
     username = getpass.getuser()
@@ -484,6 +485,8 @@ def main():
         help=f"Set the base branch that the release targets (Default: {current_branch})",
         default=current_branch)
     args = parser.parse_args()
+
+    args.latest_tag = latest_tag
 
     if len(remotes) > 2 and args.remote is None:
         msg_error("You have more than two 'git remotes' specified, so guessing where to "
