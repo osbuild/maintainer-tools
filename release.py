@@ -448,7 +448,7 @@ def release_playbook(args, repo, api):
     step("Get a Kerberos ticket for Fedora", ['kinit',f'{os.getenv("USER")}@FEDORAPROJECT.ORG'],
          ['klist'])
 
-    step("Schedule a build with Koji", ['packit', 'build'], None)
+    step("Schedule a build with Koji (this may take up to a few minutes to succeed)", ['packit', 'build'], None)
 
 
 def main():
