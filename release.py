@@ -347,9 +347,21 @@ def create_pullrequest(args, api):
 
 def create_release(args, api):
     """Create a release on GitHub"""
+    filename = "NEWS.md"
+    previous = args.version - 1
+    release_notes = ""
+
+    with open(filename, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+    for line in lines:
+        if f"## CHANGES WITH {previous}" not in line:
+            release_notes += line
+        else:
+            break
+
     try:
         res = api.repos.create_release(f'v{args.version}', None, f'{args.version}',
-                                       f"## CHANGES WITH {args.version}", False, False, None)
+                                       release_notes, False, False, None)
         msg_ok(f"Release successfully created: {res.html_url}")
     except Exception as e: # pylint: disable=broad-except
         print(e)
