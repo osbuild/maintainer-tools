@@ -406,15 +406,13 @@ def release_playbook(args, repo, api):
     if res != "skipped":
         update_news(args, repo, api)
 
+    msg_info(f"Please review the changes:\n{run_command(['git', 'diff', '--color'])}")
     if args.editor is not None:
-        res = step(f"Make the notes in NEWS.md release ready using {args.editor}", None, None)
+        res = step(f"Edit NEWS.md using {args.editor}", None, None)
         if res != "skipped":
             subprocess.call([f'{args.editor}', 'NEWS.md'])
     else:
         msg_info("Both $EDITOR and --editor are unset, skipping the editing NEWS.md step")
-
-    print(f"{run_command(['git', 'diff'])}")
-    step(f"Please review all changes {args.version}", None, None)
 
     if repo == "osbuild":
         step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
