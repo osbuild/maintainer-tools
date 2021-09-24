@@ -447,7 +447,7 @@ def release_playbook(args, repo, api):
          ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'],
          ['git','describe',f'v{args.version}'])
 
-    step("Push the release tag upstream", ['git', 'push', f'v{args.version}'], None)
+    step("Push the release tag upstream", ['git', 'push', 'origin', f'v{args.version}'], None)
 
     res = step("Create the release on GitHub", None, None)
     if res != "skipped":
