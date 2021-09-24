@@ -420,7 +420,7 @@ def release_playbook(args, repo, api):
               '-s', '-m', f'{args.version}', '-m', f'Release osbuild {args.version}'],
              None)
     elif repo == "osbuild-composer":
-        res = step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
+        res = step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md docs/)",
                    None, None)
         if res != "skipped":
             run_command(['git', 'add', 'docs/news'])
@@ -437,7 +437,7 @@ def release_playbook(args, repo, api):
 
     step("Has the upstream pull request been merged?", None, None)
 
-    res = step("Switch back to the main branch from upstream and update it", None, None)
+    res = step(f"Switch back to the {args.base} branch from upstream and update it", None, None)
     if res != "skipped":
         run_command(['git','checkout',args.base])
         run_command(['git','pull'])
