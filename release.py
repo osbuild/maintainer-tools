@@ -371,8 +371,9 @@ def create_release(args, api):
 def release_branch(args):
     """Check if a release branch already exists"""
     branches = run_command(['git','branch']).split()
+    current_branch = run_command(['git','branch','--show-current'])
     for branch in branches:
-        if f"release-{args.version}" in branch:
+        if f"release-{args.version}" in branch and f"release-{args.version}" not in current_branch:
             msg_error(f"The release branch 'release-{args.version}' already exists "
                       "but is not checked out.\n"
                       "       Consider deleting the branch if it's not clean or check it out.")
