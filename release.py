@@ -348,7 +348,7 @@ def create_pullrequest(args, api):
 def create_release(args, api):
     """Create a release on GitHub"""
     filename = "NEWS.md"
-    previous = args.version - 1
+    previous = int(args.version) - 1
     release_notes = ""
 
     with open(filename, 'r', encoding='utf-8') as file:
