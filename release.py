@@ -382,6 +382,28 @@ def release_branch(args):
     msg_ok(f"Checked out a new release branch '{current_branch}'")
 
 
+def schedule_fedora_builds(repo):
+    """Schedule builds for all active Fedora releases"""
+    fedoras = [ 'rawhide', 'f35', 'f34', 'f33' ]
+    if repo == "osbuild":
+        url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=29756"
+    else:
+        url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=31032"
+
+    if os.path.isdir(repo) is False:
+        run_command(['fedpkg','clone',repo])
+    run_command(['cd',repo])
+    for fedora in fedoras:
+        msg_info(f"Scheduling build for Fedora {fedora}")
+        run_command(['git','checkout',fedora])
+        run_command(['git','pull'])
+        res = run_command(['fedpkg','build'])
+        print(res)
+        if "completed successfully" in res:
+            msg_ok(f"Build for {fedora} done.")
+    msg_info(f"Check {url} for all {repo} builds.")
+
+
 def print_config(args, repo):
     """Print the values used for the release playbook"""
     print("\n--------------------------------\n"
@@ -460,7 +482,9 @@ def release_playbook(args, repo, api):
     step("Get a Kerberos ticket for Fedora", ['kinit',f'{os.getenv("USER")}@FEDORAPROJECT.ORG'],
          ['klist'])
 
-    step("Schedule a build with Koji (this may take up to a few minutes to succeed)", ['packit', 'build'], None)
+    res = step("Schedule builds for all active Fedora releases", None, None)
+    if res != "skipped":
+        schedule_fedora_builds(repo)
 
 
 def main():
