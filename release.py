@@ -15,6 +15,7 @@ import getpass
 from re import search
 from datetime import date
 import yaml
+import pexpect
 import mistune
 from ghapi.all import GhApi
 
@@ -370,6 +371,10 @@ def create_release(args, api):
 
 def release_branch(args):
     """Check if a release branch already exists"""
+    if "release" in args.base:
+        msg_info(f"You are already on a release branch: {args.base}")
+        return
+
     branches = run_command(['git','branch']).split()
     current_branch = run_command(['git','branch','--show-current'])
     for branch in branches:
@@ -404,6 +409,17 @@ def schedule_fedora_builds(repo):
     msg_info(f"Check {url} for all {repo} builds.")
 
 
+def kinit(args):
+    """Get a Kerberos ticket for FEDORAPROJECT.ORG"""
+    domain = "FEDORAPROJECT.ORG"
+    child = pexpect.spawn(f'kinit {args.username}@{domain}')
+    child.expect('Password.*')
+    password = getpass.getpass(f"Password for {args.username}@{domain}: ")
+    child.sendline(password)
+    res = run_command(['klist'])
+    msg_info(f"Currently valid Kerberos tickets:\n{res}")
+
+
 def print_config(args, repo):
     """Print the values used for the release playbook"""
     print("\n--------------------------------\n"
@@ -420,8 +436,7 @@ def print_config(args, repo):
 
 def release_playbook(args, repo, api):
     """Execute all steps of the release playbook"""
-    if "release" not in args.base:
-        release_branch(args)
+    release_branch(args)
 
     bump_version(args, repo)
 
@@ -476,11 +491,10 @@ def release_playbook(args, repo, api):
     if res != "skipped":
         create_release(args, api)
 
-    step(f"Merge the pull request in Fedora: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
+    step(f"Are all related pull requests in Fedora: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
          None, None)
-
-    step("Get a Kerberos ticket for Fedora", ['kinit',f'{os.getenv("USER")}@FEDORAPROJECT.ORG'],
-         ['klist'])
+    if res != "skipped":
+        kinit(args)
 
     res = step("Schedule builds for all active Fedora releases", None, None)
     if res != "skipped":
