@@ -412,10 +412,19 @@ def schedule_fedora_builds(repo):
 def kinit(args):
     """Get a Kerberos ticket for FEDORAPROJECT.ORG"""
     domain = "FEDORAPROJECT.ORG"
-    child = pexpect.spawn(f'kinit {args.username}@{domain}')
-    child.expect('Password.*')
-    password = getpass.getpass(f"Password for {args.username}@{domain}: ")
-    child.sendline(password)
+    password = getpass.getpass(f"Password for {args.user}@{domain}: ")
+
+    child = pexpect.spawn(f'kinit {args.user}@{domain}', timeout=60,
+                          echo=False)
+    try:
+        child.expect(".*:")
+        child.sendline(password)
+    except OSError as err:
+        # child exited before the pass was sent, Ansible will raise
+        # error based on the rc below, just display the error here
+        print(f"kinit with pexpect raised OSError: {err}")
+
+    child.wait()
     res = run_command(['klist'])
     msg_info(f"Currently valid Kerberos tickets:\n{res}")
 
@@ -493,6 +502,8 @@ def release_playbook(args, repo, api):
 
     step(f"Are all related pull requests in Fedora: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
          None, None)
+    res = step(f"Get Kerberos ticket for {args.user}@FEDORAPROJECT.ORG",
+               None, None)
     if res != "skipped":
         kinit(args)
 
