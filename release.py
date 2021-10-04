@@ -391,8 +391,10 @@ def schedule_fedora_builds(repo):
     fedoras = [ 'rawhide', 'f35', 'f34', 'f33' ]
     if repo == "osbuild":
         url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=29756"
-    else:
+    elif repo == "osbuild-composer":
         url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=31032"
+    else
+        url = "<unsupported repository>"
 
     if os.path.isdir(repo) is False:
         run_command(['fedpkg','clone',repo])
