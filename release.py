@@ -396,17 +396,22 @@ def schedule_fedora_builds(repo):
 
     if os.path.isdir(repo) is False:
         run_command(['fedpkg','clone',repo])
-    run_command(['cd',repo])
+    wd = os.getcwd()
+    os.chdir(f"{wd}/{repo}")
 
     for fedora in fedoras:
         msg_info(f"Scheduling build for Fedora {fedora}")
-        run_command(['git','checkout',fedora])
-        run_command(['git','pull'])
+        res = run_command(['git','checkout',fedora])
+        print(res)
+        res = run_command(['git','pull'])
+        print(res)
         res = run_command(['fedpkg','build'])
         print(res)
 
         if "completed successfully" in res:
             msg_ok(f"Build for {fedora} done.")
+
+    os.chdir(wd)
 
     msg_info(f"Check {url} for all {repo} builds.")
 
