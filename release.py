@@ -508,7 +508,7 @@ def release_playbook(args, repo, api):
     if res != "skipped":
         create_release(args, api)
 
-    step(f"Are all related pull requests in Fedora: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
+    step(f"Are all related pull requests in Fedora merged: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
          None, None)
     res = step(f"Get Kerberos ticket for {args.user}@FEDORAPROJECT.ORG",
                None, None)
