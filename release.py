@@ -386,6 +386,26 @@ def release_branch(args):
     msg_ok(f"Checked out a new release branch '{current_branch}'")
 
 
+def kinit(args):
+    """Get a Kerberos ticket for FEDORAPROJECT.ORG"""
+    domain = "FEDORAPROJECT.ORG"
+    password = getpass.getpass(f"Password for {args.user}@{domain}: ")
+
+    child = pexpect.spawn(f'kinit {args.user}@{domain}', timeout=60,
+                          echo=False)
+    try:
+        child.expect(".*:")
+        child.sendline(password)
+    except OSError as err:
+        # child exited before the pass was sent, Ansible will raise
+        # error based on the rc below, just display the error here
+        print(f"kinit with pexpect raised OSError: {err}")
+
+    child.wait()
+    res = run_command(['klist'])
+    msg_info(f"Currently valid Kerberos tickets:\n{res}")
+
+
 def schedule_fedora_builds(repo):
     """Schedule builds for all active Fedora releases"""
     fedoras = [ 'rawhide', 'f35', 'f34', 'f33' ]
@@ -416,26 +436,6 @@ def schedule_fedora_builds(repo):
     os.chdir(wd)
 
     msg_info(f"Check {url} for all {repo} builds.")
-
-
-def kinit(args):
-    """Get a Kerberos ticket for FEDORAPROJECT.ORG"""
-    domain = "FEDORAPROJECT.ORG"
-    password = getpass.getpass(f"Password for {args.user}@{domain}: ")
-
-    child = pexpect.spawn(f'kinit {args.user}@{domain}', timeout=60,
-                          echo=False)
-    try:
-        child.expect(".*:")
-        child.sendline(password)
-    except OSError as err:
-        # child exited before the pass was sent, Ansible will raise
-        # error based on the rc below, just display the error here
-        print(f"kinit with pexpect raised OSError: {err}")
-
-    child.wait()
-    res = run_command(['klist'])
-    msg_info(f"Currently valid Kerberos tickets:\n{res}")
 
 
 def print_config(args, repo):
