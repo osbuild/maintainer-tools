@@ -393,7 +393,7 @@ def schedule_fedora_builds(repo):
         url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=29756"
     elif repo == "osbuild-composer":
         url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=31032"
-    else
+    else:
         url = "<unsupported repository>"
 
     if os.path.isdir(repo) is False:
