@@ -468,19 +468,18 @@ def release_playbook(args, repo, api):
     else:
         msg_info("Both $EDITOR and --editor are unset, skipping the editing NEWS.md step")
 
+    commit_files = [ f'{repo}.spec', 'NEWS.md' ]
     if repo == "osbuild":
-        step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md setup.py)",
-             ['git', 'commit', f'{repo}.spec', 'NEWS.md', 'setup.py',
-              '-s', '-m', f'{args.version}', '-m', f'Release osbuild {args.version}'],
-             None)
+        commit_files.append('setup.py')
     elif repo == "osbuild-composer":
-        res = step(f"Add and commit the release-relevant changes ({repo}.spec NEWS.md docs/)",
-                   None, None)
-        if res != "skipped":
-            run_command(['git', 'add', 'docs/news'])
-            run_command(['git', 'commit', f'{repo}.spec', 'NEWS.md',
-                        'docs/news/unreleased', f'docs/news/{args.version}', '-s',
-                        '-m', f'{args.version}', '-m', f'Release osbuild-composer {args.version}'])
+        commit_files.append('docs/news')
+
+    res = step(f"Add and commit the release-relevant changes ({commit_files})",
+                None, None)
+    if res != "skipped":
+        run_command(['git', 'add', commit_files])
+        run_command(['git', 'commit', '-s', '-m', f'{args.version}',
+                        '-m', f'Release {repo} {args.version}'])
 
     step(f"Push all release changes to the remote '{args.remote}'",
          ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'], None)
