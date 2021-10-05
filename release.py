@@ -430,8 +430,14 @@ def schedule_fedora_builds(repo):
             res = run_command(['fedpkg','build'])
             print(res)
 
-        if "completed successfully" in res:
-            msg_ok(f"Build for {fedora} done.")
+            if "completed successfully" in res:
+                msg_ok(f"Build for {fedora} done.")
+
+                if fedora != "rawhide":
+                    msg_info(f"Updating bodhi for {fedora}...")
+                    res = run_command(['fedpkg','update','--type','enhancement',
+                                      '--notes',f'Update {repo} to the latest version'])
+                    print(res)
 
     os.chdir(wd)
     msg_info(f"Check {url} for all {repo} builds.")
