@@ -262,7 +262,7 @@ def update_news_composer(args):
     src = 'docs/news/unreleased/'
     files = os.listdir(src)
     target = f'docs/news/{args.version}'
-    run_command['mkdir', '-p', target]
+    run_command(['mkdir', '-p', target])
 
     for file in files:
         if file != ".gitkeep":
