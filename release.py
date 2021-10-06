@@ -458,16 +458,16 @@ def print_config(args, repo):
            "--------------------------------\n")
 
 
-def release_playbook(args, repo, api):
-    """Execute all steps of the release playbook"""
-    release_branch(args)
+def step_prepare_branch_and_bump_version(args, repo):
+    res = step("Make the realease branch and bump version ?", None, None)
+    if res != "skipped":
+        release_branch(args)
+        bump_version(args, repo)
 
-    bump_version(args, repo)
-
+def step_udpate_news(args, repo, api):
     res = step("Update the NEWS.md file", None, None)
     if res != "skipped":
         update_news(args, repo, api)
-
     msg_info(f"Please review the changes:\n{run_command(['git', 'diff', '--color'])}")
     if args.editor is not None:
         res = step(f"Edit NEWS.md using {args.editor}", None, None)
@@ -476,12 +476,12 @@ def release_playbook(args, repo, api):
     else:
         msg_info("Both $EDITOR and --editor are unset, skipping the editing NEWS.md step")
 
+def step_add_commit(args, repo):
     commit_files = [ f'{repo}.spec', 'NEWS.md' ]
     if repo == "osbuild":
         commit_files.append('setup.py')
     elif repo == "osbuild-composer":
         commit_files.append('docs/news')
-
     res = step(f"Add and commit the release-relevant changes ({commit_files})",
                 None, None)
     if res != "skipped":
@@ -489,6 +489,7 @@ def release_playbook(args, repo, api):
         run_command(['git', 'commit', '-s', '-m', f'{args.version}',
                         '-m', f'Release {repo} {args.version}'])
 
+def step_push_remote(args, api):
     step(f"Push all release changes to the remote '{args.remote}'",
          ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'], None)
 
@@ -496,34 +497,76 @@ def release_playbook(args, repo, api):
     if res != "skipped":
         create_pullrequest(args, api)
 
-    step("Has the upstream pull request been merged?", None, None)
-
+def step_update_from_upstream(args):
     res = step(f"Switch back to the {args.base} branch from upstream and update it", None, None)
     if res != "skipped":
         run_command(['git','checkout',args.base])
         run_command(['git','pull'])
         msg_info(f"You are currently on branch: {run_command(['git','branch','--show-current'])}")
 
+def step_tag_release_version(args, repo):
     step(f"Tag the release with version 'v{args.version}'",
          ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'],
          ['git','describe',f'v{args.version}'])
 
-    step("Push the release tag upstream", ['git', 'push', 'origin', f'v{args.version}'], None)
-
+def step_create_github_release(args, api):
     res = step("Create the release on GitHub", None, None)
     if res != "skipped":
         create_release(args, api)
 
-    step(f"Are all related pull requests in Fedora merged: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
-         None, None)
+def step_kerberos_ticket(args):
     res = step(f"Get Kerberos ticket for {args.user}@FEDORAPROJECT.ORG",
                None, None)
     if res != "skipped":
         kinit(args)
 
+def step_schedule_fedora_builds(repo):
     res = step("Schedule builds for all active Fedora releases", None, None)
     if res != "skipped":
         schedule_fedora_builds(repo)
+
+def release_playbook(args, repo, api):
+    """Execute all steps of the release playbook"""
+    start_from = args.start_from
+    print(start_from)
+
+    if start_from in(None, "step_prepare_branch_and_bump_version"):
+        start_from = None
+        step_prepare_branch_and_bump_version(args, repo)
+    if start_from in(None, "step_udpate_news"):
+        start_from = None
+        step_udpate_news(args, repo, api)
+    if start_from in(None, "step_add_commit"):
+        start_from = None
+        step_add_commit(args, repo)
+    if start_from in(None, "step_push_remote"):
+        start_from = None
+        step_push_remote(args, api)
+    if start_from in(None, "step_wait_merge"):
+        start_from = None
+        step("Has the upstream pull request been merged?", None, None)
+    if start_from in(None, "step_update_from_upstream"):
+        start_from = None
+        step_update_from_upstream(args)
+    if start_from in(None, "step_tag_release_version"):
+        start_from = None
+        step_tag_release_version(args, repo)
+    if start_from in(None, "step_push_release_tag"):
+        start_from = None
+        step("Push the release tag upstream", ['git', 'push', 'origin', f'v{args.version}'], None)
+    if start_from in(None, "step_create_github_release"):
+        start_from = None
+        step_create_github_release(args, api)
+    if start_from in(None, "step_check_PR_fedora"):
+        start_from = None
+        step(f"Are all related pull requests in Fedora merged: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
+         None, None)
+    if start_from in(None, "step_kerberos_ticket"):
+        start_from = None
+        step_kerberos_ticket(args)
+    if start_from in(None, "step_schedule_fedora_builds"):
+        start_from = None
+        step_schedule_fedora_builds(repo)
 
 
 def main():
@@ -559,6 +602,22 @@ def main():
         "-b", "--base",
         help=f"Set the base branch that the release targets (Default: {current_branch})",
         default=current_branch)
+    parser.add_argument("-s", '--start-from',
+                    choices=[
+                        "step_prepare_branch_and_bump_version",
+                        "step_udpate_news",
+                        "step_add_commit",
+                        "step_push_remote",
+                        "step_wait_merge",
+                        "step_update_from_upstream",
+                        "step_tag_release_version",
+                        "step_push_release_tag",
+                        "step_create_github_release",
+                        "step_check_PR_fedora",
+                        "step_kerberos_ticket",
+                        "step_schedule_fedora_builds"
+                        ],
+                    help='Specify a step to restart the script from')
     args = parser.parse_args()
 
     args.latest_tag = latest_tag
