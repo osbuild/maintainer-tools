@@ -53,6 +53,20 @@ def machine_id():
     return mid
 
 
+def find_omvf():
+    dirs = [
+        "~/.local/share/ovmf",
+        "/usr/share/OVMF"
+    ]
+
+    for d in dirs:
+        path = os.path.expanduser(d)
+        if os.path.exists(path):
+            return path
+
+    raise RuntimeError("Could not find OMVF")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Boot virtual machine images")
     parser.add_argument("--memory", default=2048, help="Memory of the machine")
@@ -111,15 +125,18 @@ def main():
             "q35"
         ]
         if argv.get("secureboot", False):
+            omvf = find_omvf()
             args += [
                 "-drive",
-                "file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on",
+                f"file={omvf}/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on",
                 "-drive",
-                "file=/usr/share/OVMF/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off"
+                f"file={omvf}/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off",
             ]
         elif argv.get("uefi", False):
+            omvf = find_omvf()
+
             args += [
-                "-drive", "file=/usr/share/OVMF/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"
+                "-drive", f"file={omvf}/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"
             ]
     elif arch == "aarch64":
         args = [
