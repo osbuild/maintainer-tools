@@ -422,6 +422,7 @@ def schedule_fedora_builds(repo):
     with tempfile.TemporaryDirectory() as tmpdir:
         os.chdir(tmpdir)
         run_command(['fedpkg','clone',repo])
+        os.chdir(os.path.join(tmpdir,repo))
 
         for fedora in fedoras:
             msg_info(f"Scheduling build for Fedora {fedora} (this may take a while)")
