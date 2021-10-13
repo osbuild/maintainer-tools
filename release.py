@@ -485,7 +485,7 @@ def step_add_commit(args, repo):
     res = step(f"Add and commit the release-relevant changes ({commit_files})",
                 None, None)
     if res != "skipped":
-        run_command(['git', 'add', commit_files])
+        run_command(['git', 'add', *commit_files])
         run_command(['git', 'commit', '-s', '-m', f'{args.version}',
                         '-m', f'Release {repo} {args.version}'])
 
