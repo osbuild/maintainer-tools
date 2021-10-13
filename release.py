@@ -94,6 +94,7 @@ def step(action, args, verify):
                     out = run_command(verify)
 
                 msg_ok(f"\n{out}")
+            ret = "ok"
         elif feedback == "s":
             msg_info("Step skipped.")
             ret = "skipped"
