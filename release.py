@@ -85,20 +85,21 @@ def run_command(argv):
 def step(action, args, verify):
     """Ask the user whether to accept (y) or skip (s) the step or cancel (N) the playbook"""
     ret = None
-    feedback = input(f"{fg.BOLD}Step: {fg.RESET}{action} ([y]es, [s]kip, [Q]uit) ")
-    if feedback == "y":
-        if args is not None:
-            out = run_command(args)
-            if verify is not None:
-                out = run_command(verify)
+    while ret is None:
+        feedback = input(f"{fg.BOLD}Step: {fg.RESET}{action} ([y]es, [s]kip, [Q]uit) ")
+        if feedback == "y":
+            if args is not None:
+                out = run_command(args)
+                if verify is not None:
+                    out = run_command(verify)
 
-            msg_ok(f"\n{out}")
-    elif feedback == "s":
-        msg_info("Step skipped.")
-        ret = "skipped"
-    else:
-        msg_info("Release playbook quit.")
-        sys.exit(0)
+                msg_ok(f"\n{out}")
+        elif feedback == "s":
+            msg_info("Step skipped.")
+            ret = "skipped"
+        elif feedback in ("Q", ""):
+            msg_info("Release playbook quit.")
+            sys.exit(0)
 
     return ret
 
