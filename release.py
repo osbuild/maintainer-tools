@@ -461,7 +461,7 @@ def print_config(args, repo):
 
 
 def step_prepare_branch_and_bump_version(args, repo):
-    res = step("Make the realease branch and bump version ?", None, None)
+    res = step("Make the release branch and bump version ?", None, None)
     if res != "skipped":
         release_branch(args)
         bump_version(args, repo)
