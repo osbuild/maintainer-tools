@@ -21,7 +21,7 @@ import mistune
 from ghapi.all import GhApi
 
 
-class fg: #pylint: disable=too-few-public-methods
+class fg:  # pylint: disable=too-few-public-methods
     """Set of constants to print colored output in the terminal"""
     BOLD = '\033[1m'  # bold
     OK = '\033[32m'  # green
@@ -74,7 +74,7 @@ def sanity_checks(repo):
 
 def run_command(argv):
     """Run a shellcommand and return stdout"""
-    result = subprocess.run( # pylint: disable=subprocess-run-check
+    result = subprocess.run(  # pylint: disable=subprocess-run-check
         argv,
         capture_output=True,
         text=True,
@@ -189,7 +189,7 @@ def get_pullrequest_infos(api, milestone):
             super().__init__()
             self.in_notes = False
 
-        def block_code(self, code, _lang): # pylint: disable=signature-differs
+        def block_code(self, code, _lang):  # pylint: disable=signature-differs
             if self.in_notes:
                 self.in_notes = False
                 return code
@@ -267,9 +267,9 @@ def update_news_composer(args):
 
     for file in files:
         if file != ".gitkeep":
-            shutil.move(os.path.join(src,file), target)
+            shutil.move(os.path.join(src, file), target)
 
-    listing = run_command(['ls',f'docs/news/{args.version}'])
+    listing = run_command(['ls', f'docs/news/{args.version}'])
     msg_info(f"Content of docs/news/{args.version}:\n{listing}")
 
     summaries = get_unreleased(args.version)
@@ -313,9 +313,9 @@ def bump_version(args, repo):
         with open(filename, 'r', encoding='utf-8') as file:
             lines = file.readlines()
 
-        lines = [l.replace(args.latest_tag.replace("v", ""), str(args.version))
-                if l.startswith(starts_with) else l
-                for l in lines]
+        lines = [line.replace(args.latest_tag.replace("v", ""), str(args.version))
+                 if line.startswith(starts_with) else line
+                 for line in lines]
 
         with open(filename, 'w', encoding='utf-8') as file:
             file.writelines(lines)
@@ -336,12 +336,12 @@ def create_pullrequest(args, api):
 
     title = f'Prepare release {args.version}'
     head = f'{args.user}:release-{args.version}'
-    body= 'Tasks:\n- [ ] Bump version\n- [ ] Update news'
+    body = 'Tasks:\n- [ ] Bump version\n- [ ] Update news'
 
     try:
         res = api.pulls.create(title, head, args.base, body, True, False, None)
         msg_ok(f"Pull request successfully created: {res.html_url}")
-    except Exception as e: # pylint: disable=broad-except
+    except Exception as e:  # pylint: disable=broad-except
         print(e)
         msg_error("Could not create pull request.")
 
@@ -364,7 +364,7 @@ def create_release(args, api):
         res = api.repos.create_release(f'v{args.version}', None, f'{args.version}',
                                        release_notes, False, False, None)
         msg_ok(f"Release successfully created: {res.html_url}")
-    except Exception as e: # pylint: disable=broad-except
+    except Exception as e:  # pylint: disable=broad-except
         print(e)
         msg_error("Could not create release on GitHub.")
 
@@ -375,15 +375,15 @@ def release_branch(args):
         msg_info(f"You are already on a release branch: {args.base}")
         return
 
-    branches = run_command(['git','branch']).split()
-    current_branch = run_command(['git','branch','--show-current'])
+    branches = run_command(['git', 'branch']).split()
+    current_branch = run_command(['git', 'branch', '--show-current'])
     for branch in branches:
         if f"release-{args.version}" in branch and f"release-{args.version}" not in current_branch:
             msg_error(f"The release branch 'release-{args.version}' already exists "
                       "but is not checked out.\n"
                       "       Consider deleting the branch if it's not clean or check it out.")
     run_command(['git', 'checkout', '-b', f'release-{args.version}'])
-    current_branch = run_command(['git','branch','--show-current'])
+    current_branch = run_command(['git', 'branch', '--show-current'])
     msg_ok(f"Checked out a new release branch '{current_branch}'")
 
 
@@ -409,7 +409,7 @@ def kinit(args):
 
 def schedule_fedora_builds(repo):
     """Schedule builds for all active Fedora releases"""
-    fedoras = [ 'rawhide', 'f35', 'f34', 'f33' ]
+    fedoras = ['rawhide', 'f35', 'f34', 'f33']
     if repo == "osbuild":
         url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=29756"
     elif repo == "osbuild-composer":
@@ -421,14 +421,14 @@ def schedule_fedora_builds(repo):
 
     with tempfile.TemporaryDirectory() as tmpdir:
         os.chdir(tmpdir)
-        run_command(['fedpkg','clone',repo])
-        os.chdir(os.path.join(tmpdir,repo))
+        run_command(['fedpkg', 'clone', repo])
+        os.chdir(os.path.join(tmpdir, repo))
 
         for fedora in fedoras:
             msg_info(f"Scheduling build for Fedora {fedora} (this may take a while)")
-            res = run_command(['git','checkout',fedora])
+            res = run_command(['git', 'checkout', fedora])
             print(res)
-            res = run_command(['fedpkg','build'])
+            res = run_command(['fedpkg', 'build'])
             print(res)
 
             if "completed successfully" in res:
@@ -436,8 +436,8 @@ def schedule_fedora_builds(repo):
 
                 if fedora != "rawhide":
                     msg_info(f"Updating bodhi for {fedora}...")
-                    res = run_command(['fedpkg','update','--type','enhancement',
-                                      '--notes',f'Update {repo} to the latest version'])
+                    res = run_command(['fedpkg', 'update', '--type', 'enhancement',
+                                      '--notes', f'Update {repo} to the latest version'])
                     print(res)
 
     os.chdir(wd)
@@ -455,7 +455,7 @@ def print_config(args, repo):
           f"  User:          {args.user}\n"
           f"  Token:         {bool(args.token)}\n"
           f"  Remote:        {args.remote}\n"
-           "--------------------------------\n")
+          f"--------------------------------\n")
 
 
 def step_prepare_branch_and_bump_version(args, repo):
@@ -463,6 +463,7 @@ def step_prepare_branch_and_bump_version(args, repo):
     if res != "skipped":
         release_branch(args)
         bump_version(args, repo)
+
 
 def step_udpate_news(args, repo, api):
     res = step("Update the NEWS.md file", None, None)
@@ -476,18 +477,20 @@ def step_udpate_news(args, repo, api):
     else:
         msg_info("Both $EDITOR and --editor are unset, skipping the editing NEWS.md step")
 
+
 def step_add_commit(args, repo):
-    commit_files = [ f'{repo}.spec', 'NEWS.md' ]
+    commit_files = [f'{repo}.spec', 'NEWS.md']
     if repo == "osbuild":
         commit_files.append('setup.py')
     elif repo == "osbuild-composer":
         commit_files.append('docs/news')
     res = step(f"Add and commit the release-relevant changes ({commit_files})",
-                None, None)
+               None, None)
     if res != "skipped":
         run_command(['git', 'add', *commit_files])
         run_command(['git', 'commit', '-s', '-m', f'{args.version}',
-                        '-m', f'Release {repo} {args.version}'])
+                     '-m', f'Release {repo} {args.version}'])
+
 
 def step_push_remote(args, api):
     step(f"Push all release changes to the remote '{args.remote}'",
@@ -497,22 +500,26 @@ def step_push_remote(args, api):
     if res != "skipped":
         create_pullrequest(args, api)
 
+
 def step_update_from_upstream(args):
     res = step(f"Switch back to the {args.base} branch from upstream and update it", None, None)
     if res != "skipped":
-        run_command(['git','checkout',args.base])
-        run_command(['git','pull'])
+        run_command(['git', 'checkout', args.base])
+        run_command(['git', 'pull'])
         msg_info(f"You are currently on branch: {run_command(['git','branch','--show-current'])}")
+
 
 def step_tag_release_version(args, repo):
     step(f"Tag the release with version 'v{args.version}'",
          ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'],
-         ['git','describe',f'v{args.version}'])
+         ['git', 'describe', f'v{args.version}'])
+
 
 def step_create_github_release(args, api):
     res = step("Create the release on GitHub", None, None)
     if res != "skipped":
         create_release(args, api)
+
 
 def step_kerberos_ticket(args):
     res = step(f"Get Kerberos ticket for {args.user}@FEDORAPROJECT.ORG",
@@ -520,51 +527,53 @@ def step_kerberos_ticket(args):
     if res != "skipped":
         kinit(args)
 
+
 def step_schedule_fedora_builds(repo):
     res = step("Schedule builds for all active Fedora releases", None, None)
     if res != "skipped":
         schedule_fedora_builds(repo)
+
 
 def release_playbook(args, repo, api):
     """Execute all steps of the release playbook"""
     start_from = args.start_from
     print(start_from)
 
-    if start_from in(None, "step_prepare_branch_and_bump_version"):
+    if start_from in (None, "step_prepare_branch_and_bump_version"):
         start_from = None
         step_prepare_branch_and_bump_version(args, repo)
-    if start_from in(None, "step_udpate_news"):
+    if start_from in (None, "step_udpate_news"):
         start_from = None
         step_udpate_news(args, repo, api)
-    if start_from in(None, "step_add_commit"):
+    if start_from in (None, "step_add_commit"):
         start_from = None
         step_add_commit(args, repo)
-    if start_from in(None, "step_push_remote"):
+    if start_from in (None, "step_push_remote"):
         start_from = None
         step_push_remote(args, api)
-    if start_from in(None, "step_wait_merge"):
+    if start_from in (None, "step_wait_merge"):
         start_from = None
         step("Has the upstream pull request been merged?", None, None)
-    if start_from in(None, "step_update_from_upstream"):
+    if start_from in (None, "step_update_from_upstream"):
         start_from = None
         step_update_from_upstream(args)
-    if start_from in(None, "step_tag_release_version"):
+    if start_from in (None, "step_tag_release_version"):
         start_from = None
         step_tag_release_version(args, repo)
-    if start_from in(None, "step_push_release_tag"):
+    if start_from in (None, "step_push_release_tag"):
         start_from = None
         step("Push the release tag upstream", ['git', 'push', 'origin', f'v{args.version}'], None)
-    if start_from in(None, "step_create_github_release"):
+    if start_from in (None, "step_create_github_release"):
         start_from = None
         step_create_github_release(args, api)
-    if start_from in(None, "step_check_PR_fedora"):
+    if start_from in (None, "step_check_PR_fedora"):
         start_from = None
         step(f"Are all related pull requests in Fedora merged: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
-         None, None)
-    if start_from in(None, "step_kerberos_ticket"):
+             None, None)
+    if start_from in (None, "step_kerberos_ticket"):
         start_from = None
         step_kerberos_ticket(args)
-    if start_from in(None, "step_schedule_fedora_builds"):
+    if start_from in (None, "step_schedule_fedora_builds"):
         start_from = None
         step_schedule_fedora_builds(repo)
 
@@ -603,21 +612,21 @@ def main():
         help=f"Set the base branch that the release targets (Default: {current_branch})",
         default=current_branch)
     parser.add_argument("-s", '--start-from',
-                    choices=[
-                        "step_prepare_branch_and_bump_version",
-                        "step_udpate_news",
-                        "step_add_commit",
-                        "step_push_remote",
-                        "step_wait_merge",
-                        "step_update_from_upstream",
-                        "step_tag_release_version",
-                        "step_push_release_tag",
-                        "step_create_github_release",
-                        "step_check_PR_fedora",
-                        "step_kerberos_ticket",
-                        "step_schedule_fedora_builds"
+                        choices=[
+                            "step_prepare_branch_and_bump_version",
+                            "step_udpate_news",
+                            "step_add_commit",
+                            "step_push_remote",
+                            "step_wait_merge",
+                            "step_update_from_upstream",
+                            "step_tag_release_version",
+                            "step_push_release_tag",
+                            "step_create_github_release",
+                            "step_check_PR_fedora",
+                            "step_kerberos_ticket",
+                            "step_schedule_fedora_builds"
                         ],
-                    help='Specify a step to restart the script from')
+                        help='Specify a step to restart the script from')
     args = parser.parse_args()
 
     args.latest_tag = latest_tag
@@ -625,7 +634,7 @@ def main():
     if len(remotes) > 2 and args.remote is None:
         msg_error("You have more than two 'git remotes' specified, so guessing where to "
                   "create the pull request from would likely fail.\n"
-                 f"       Please use the --remote argument to set the correct one: {remotes}")
+                  f"       Please use the --remote argument to set the correct one: {remotes}")
 
     msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 
