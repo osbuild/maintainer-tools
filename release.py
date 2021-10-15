@@ -6,18 +6,14 @@
 
 import argparse
 import contextlib
-import itertools
 import subprocess
 import sys
 import os
-import shutil
 import getpass
 import tempfile
-from re import search
 from datetime import date
 import yaml
 import pexpect
-import mistune
 from ghapi.all import GhApi
 
 
@@ -117,21 +113,6 @@ def autoincrement_version(latest_tag):
     return version
 
 
-def guess_remote(repo, remotes):
-    """Guess the git remote to push the release changes to"""
-    origin = f"github.com[/:]osbuild/{repo}.git"
-
-    if len(remotes) > 2:
-        return None
-
-    for remote in remotes:
-        remote_url = run_command(['git', 'remote', 'get-url', f'{remote}'])
-        if search(origin, remote_url) is None:
-            return remote
-
-    return None
-
-
 def detect_github_token():
     """Check if a GitHub token is available"""
     token = os.getenv("GITHUB_TOKEN")
@@ -150,71 +131,37 @@ def detect_github_token():
     return None
 
 
-def get_milestone(api, version):
-    """Get the milestone id based on its version number"""
-    milestones = api.issues.list_milestones()
-    for milestone in milestones:
-        if str(version) in milestone.title:
-            msg_info(f"Gathering pull requests for milestone '{milestone.title}' ({milestone.url})")
-            return milestone
-    return None
-
-
-def list_prs_for_milestone(api, milestone):
-    """List all pull requests for a given milestone id"""
-    query = f'milestone:"{milestone.title}" type:pr repo:osbuild/osbuild'
-    count = 0
-
-    for i in itertools.count():
-        res = api.search.issues_and_pull_requests(q=query, per_page=20, page=i)
+def list_prs_for_hash(args, api, repo, commit_hash):
+    """Get pull request for a given commit hash"""
+    query = f'{commit_hash} type:pr is:merged base:{args.base} repo:osbuild/{repo}'
+    res = api.search.issues_and_pull_requests(q=query, per_page=20)
+    if res is not None:
         items = res["items"]
 
-        if not res:
-            break
+        if len(items) == 1:
+            ret = items[0]
+        else:
+            msg_info(f"There are {len(items)} pull requests associated with {commit_hash} - skipping...")
+            ret = None
+    else:
+        ret = None
 
-        for item in items:
-            if item.state != "closed":
-                continue
-            yield item
-
-        count += len(items)
-        if count == res.total_count:
-            break
+    return ret
 
 
-def get_pullrequest_infos(api, milestone):
-    """Fetch the summaries of the pull requests"""
-
-    class NotesRenderer(mistune.Renderer):
-        """Renderer for the release notes"""
-        def __init__(self) -> None:
-            super().__init__()
-            self.in_notes = False
-
-        def block_code(self, code, _lang):  # pylint: disable=signature-differs
-            if self.in_notes:
-                self.in_notes = False
-                return code
-            return ""
-
-        def paragraph(self, text):
-            self.in_notes = "Release Notes" in text
-            return ""
-
+def get_pullrequest_infos(args, repo, api, hashes):
+    """Fetch the titles of all related pull requests"""
     summaries = []
     i = 0
 
-    renderer = NotesRenderer()
-    markdown = mistune.Markdown(renderer=renderer)
-
-    for i, pull_request in enumerate(list_prs_for_milestone(api, milestone)):
-        msg = markdown(pull_request.body)
-        print(f" * {pull_request.url}")
-        if not msg:
-            msg = f"  * {pull_request.title}: {pull_request.body}"
+    for commit_hash in hashes:
+        i += 1
+        pull_request = list_prs_for_hash(args, api, repo, commit_hash)
+        msg = f"  * {pull_request.title} (#{pull_request.number})"
         summaries.append(msg)
 
-    msg_ok(f"Collected summaries from {i+1} pull requests.")
+    summaries = list(dict.fromkeys(summaries))
+    msg_ok(f"Collected summaries from {len(summaries)} pull requests ({i} commits).")
     return "\n\n".join(summaries)
 
 
@@ -230,163 +177,24 @@ def get_contributors(args):
     return names[:-2]
 
 
-def get_unreleased(version):
-    """Get all unreleased .md files and return their content"""
-    summaries = ""
-    path = f'docs/news/{version}'
-    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
-    for file in files:
-        with open(f'docs/news/{version}/{file}', 'r', encoding='utf-8') as markdown:
-            lines = markdown.readlines()
-            for line in lines:
-                if "# " in line:
-                    summaries += line.replace("# ", "  * ")
-
-    return summaries
-
-
-def update_news_osbuild(args, api):
-    """Update the NEWS file for osbuild"""
-    if args.token is None:
-        msg_info("You have not passed a token so you may run into GitHub rate limiting.")
-
-    summaries = ""
-    milestone = get_milestone(api, args.version)
-    if milestone is None:
-        msg_info(f"Couldn't find a milestone for version {args.version}")
-    else:
-        summaries = get_pullrequest_infos(api, milestone)
-
-    return summaries
-
-
-def update_news_composer(args):
-    """Update the NEWS file for osbuild-composer"""
-    src = 'docs/news/unreleased/'
-    files = os.listdir(src)
-    target = f'docs/news/{args.version}'
-    run_command(['mkdir', '-p', target])
-
-    for file in files:
-        if file != ".gitkeep":
-            shutil.move(os.path.join(src, file), target)
-
-    listing = run_command(['ls', f'docs/news/{args.version}'])
-    msg_info(f"Content of docs/news/{args.version}:\n{listing}")
-
-    summaries = get_unreleased(args.version)
-    return summaries
-
-
-def update_news(args, repo, api):
-    """Update the NEWS file"""
+def create_release_tag(args, repo, api):
+    """Create a release tag"""
     today = date.today()
     contributors = get_contributors(args)
 
-    if repo == "osbuild":
-        summaries = update_news_osbuild(args, api)
-    elif repo == "osbuild-composer":
-        summaries = update_news_composer(args)
+    summaries = ""
+    hashes = run_command(['git', 'log', '--format=%H', f'{args.latest_tag}..HEAD']).split("\n")
+    msg_info(f"Found {len(hashes)} commits since {args.latest_tag} in {args.base}:")
+    print("\n".join(hashes))
+    summaries = get_pullrequest_infos(args, repo, api, hashes)
 
-    filename = "NEWS.md"
-    if os.path.exists(filename):
-        with open(filename, 'r', encoding='utf-8') as file:
-            content = file.read()
+    message = (f"CHANGES WITH {args.version}:\n\n"
+               f"----------------\n"
+               f"{summaries}\n\n"
+               f"Contributions from: {contributors}\n\n"
+               f"— Location, {today.strftime('%Y-%m-%d')}")
 
-        with open(filename, 'w', encoding='utf-8') as file:
-            file.write(f"## CHANGES WITH {args.version}:\n\n"
-                       f"{summaries}\n"
-                       f"Contributions from: {contributors}\n\n"
-                       f"— Location, {today.strftime('%Y-%m-%d')}\n\n"
-                       f"{content}")
-    else:
-        print(f"Error: The file {filename} does not exist.")
-
-
-def bump_version(args, repo):
-    """Bump the version in a file"""
-    filenames = [f"{repo}.spec"]
-    if repo == "osbuild":
-        filenames.append("setup.py")
-
-    starts_with = ("Version:", "    version=")
-
-    for filename in filenames:
-        with open(filename, 'r', encoding='utf-8') as file:
-            lines = file.readlines()
-
-        lines = [line.replace(args.latest_tag.replace("v", ""), str(args.version))
-                 if line.startswith(starts_with) else line
-                 for line in lines]
-
-        with open(filename, 'w', encoding='utf-8') as file:
-            file.writelines(lines)
-
-    msg_info(f"Bumped the version in {filenames}")
-
-
-def create_pullrequest(args, api):
-    """Create a pull request on GitHub from the fork to the main repository"""
-    if args.user is None or args.token is None:
-        msg_error("Missing credentials for GitHub.\n"
-                  "       Without a token you cannot create a pull request.")
-
-    if "release" in args.base:
-        msg_info("You are probably re-executing this script, trying to create a pull request"
-                 f"against a '{args.base}' (expected: 'main' or 'rhel-*').\n"
-                 "       You may want to specifiy the base branch (--base) manually.")
-
-    title = f'Prepare release {args.version}'
-    head = f'{args.user}:release-{args.version}'
-    body = 'Tasks:\n- [ ] Bump version\n- [ ] Update news'
-
-    try:
-        res = api.pulls.create(title, head, args.base, body, True, False, None)
-        msg_ok(f"Pull request successfully created: {res.html_url}")
-    except Exception as e:  # pylint: disable=broad-except
-        print(e)
-        msg_error("Could not create pull request.")
-
-
-def create_release(args, api):
-    """Create a release on GitHub"""
-    filename = "NEWS.md"
-    previous = int(args.version) - 1
-    release_notes = ""
-
-    with open(filename, 'r', encoding='utf-8') as file:
-        lines = file.readlines()
-    for line in lines:
-        if f"## CHANGES WITH {previous}" not in line:
-            release_notes += line
-        else:
-            break
-
-    try:
-        res = api.repos.create_release(f'v{args.version}', None, f'{args.version}',
-                                       release_notes, False, False, None)
-        msg_ok(f"Release successfully created: {res.html_url}")
-    except Exception as e:  # pylint: disable=broad-except
-        print(e)
-        msg_error("Could not create release on GitHub.")
-
-
-def release_branch(args):
-    """Check if a release branch already exists"""
-    if "release" in args.base:
-        msg_info(f"You are already on a release branch: {args.base}")
-        return
-
-    branches = run_command(['git', 'branch']).split()
-    current_branch = run_command(['git', 'branch', '--show-current'])
-    for branch in branches:
-        if f"release-{args.version}" in branch and f"release-{args.version}" not in current_branch:
-            msg_error(f"The release branch 'release-{args.version}' already exists "
-                      "but is not checked out.\n"
-                      "       Consider deleting the branch if it's not clean or check it out.")
-    run_command(['git', 'checkout', '-b', f'release-{args.version}'])
-    current_branch = run_command(['git', 'branch', '--show-current'])
-    msg_ok(f"Checked out a new release branch '{current_branch}'")
+    subprocess.call(['git', 'tag', '-s', '-e', '-m', message, f'v{args.version}', 'HEAD'])
 
 
 def kinit(args):
@@ -400,8 +208,6 @@ def kinit(args):
         child.expect(".*:")
         child.sendline(password)
     except OSError as err:
-        # child exited before the pass was sent, Ansible will raise
-        # error based on the rc below, just display the error here
         print(f"kinit with pexpect raised OSError: {err}")
 
     child.wait()
@@ -417,7 +223,7 @@ def schedule_fedora_builds(repo):
     elif repo == "osbuild-composer":
         url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=31032"
     else:
-        url = "<unsupported repository>"
+        msg_error(f"Unsupported repository '{repo}'. Currently only osbuild and osbuild-composer are supported.")
 
     wd = os.getcwd()
 
@@ -456,71 +262,13 @@ def print_config(args, repo):
           f"{fg.BOLD}GitHub{fg.RESET}:\n"
           f"  User:          {args.user}\n"
           f"  Token:         {bool(args.token)}\n"
-          f"  Remote:        {args.remote}\n"
           f"--------------------------------\n")
 
 
-def step_prepare_branch_and_bump_version(args, repo):
-    res = step("Make the release branch and bump version ?", None, None)
+def step_create_release_tag(args, repo, api):
+    res = step("Create a tag for the release", None, None)
     if res != "skipped":
-        release_branch(args)
-        bump_version(args, repo)
-
-
-def step_udpate_news(args, repo, api):
-    res = step("Update the NEWS.md file", None, None)
-    if res != "skipped":
-        update_news(args, repo, api)
-    msg_info(f"Please review the changes:\n{run_command(['git', 'diff', '--color'])}")
-    if args.editor is not None:
-        res = step(f"Edit NEWS.md using {args.editor}", None, None)
-        if res != "skipped":
-            subprocess.call([f'{args.editor}', 'NEWS.md'])
-    else:
-        msg_info("Both $EDITOR and --editor are unset, skipping the editing NEWS.md step")
-
-
-def step_add_commit(args, repo):
-    commit_files = [f'{repo}.spec', 'NEWS.md']
-    if repo == "osbuild":
-        commit_files.append('setup.py')
-    elif repo == "osbuild-composer":
-        commit_files.append('docs/news')
-    res = step(f"Add and commit the release-relevant changes ({commit_files})",
-               None, None)
-    if res != "skipped":
-        run_command(['git', 'add', *commit_files])
-        run_command(['git', 'commit', '-s', '-m', f'{args.version}',
-                     '-m', f'Release {repo} {args.version}'])
-
-
-def step_push_remote(args, api):
-    step(f"Push all release changes to the remote '{args.remote}'",
-         ['git', 'push', '--set-upstream', f'{args.remote}', f'release-{args.version}'], None)
-
-    res = step(f"Create a pull request on GitHub for user {args.user}", None, None)
-    if res != "skipped":
-        create_pullrequest(args, api)
-
-
-def step_update_from_upstream(args):
-    res = step(f"Switch back to the {args.base} branch from upstream and update it", None, None)
-    if res != "skipped":
-        run_command(['git', 'checkout', args.base])
-        run_command(['git', 'pull'])
-        msg_info(f"You are currently on branch: {run_command(['git','branch','--show-current'])}")
-
-
-def step_tag_release_version(args, repo):
-    step(f"Tag the release with version 'v{args.version}'",
-         ['git', 'tag', '-s', '-m', f'{repo} {args.version}', f'v{args.version}', 'HEAD'],
-         ['git', 'describe', f'v{args.version}'])
-
-
-def step_create_github_release(args, api):
-    res = step("Create the release on GitHub", None, None)
-    if res != "skipped":
-        create_release(args, api)
+        create_release_tag(args, repo, api)
 
 
 def step_kerberos_ticket(args):
@@ -541,42 +289,13 @@ def release_playbook(args, repo, api):
     start_from = args.start_from
     print(start_from)
 
-    if start_from in (None, "step_prepare_branch_and_bump_version"):
+    if start_from in (None, "step_create_release_tag"):
         start_from = None
-        step_prepare_branch_and_bump_version(args, repo)
-    if start_from in (None, "step_udpate_news"):
-        start_from = None
-        step_udpate_news(args, repo, api)
-    if start_from in (None, "step_add_commit"):
-        start_from = None
-        step_add_commit(args, repo)
-    if start_from in (None, "step_push_remote"):
-        start_from = None
-        step_push_remote(args, api)
-    if start_from in (None, "step_wait_merge"):
-        start_from = None
-        step("Has the upstream pull request been merged?", None, None)
-    if start_from in (None, "step_update_from_upstream"):
-        start_from = None
-        step_update_from_upstream(args)
-    if start_from in (None, "step_tag_release_version"):
-        start_from = None
-        step_tag_release_version(args, repo)
-    if start_from in (None, "step_push_release_tag"):
-        start_from = None
+        step_create_release_tag(args, repo, api)
         step("Push the release tag upstream", ['git', 'push', 'origin', f'v{args.version}'], None)
-    if start_from in (None, "step_create_github_release"):
-        start_from = None
-        step_create_github_release(args, api)
-    if start_from in (None, "step_check_PR_fedora"):
-        start_from = None
-        step(f"Are all related pull requests in Fedora merged: https://src.fedoraproject.org/rpms/{repo}/pull-requests",
-             None, None)
-    if start_from in (None, "step_kerberos_ticket"):
+    if start_from in (None, "step_fedora_builds"):
         start_from = None
         step_kerberos_ticket(args)
-    if start_from in (None, "step_schedule_fedora_builds"):
-        start_from = None
         step_schedule_fedora_builds(repo)
 
 
@@ -587,56 +306,30 @@ def main():
     current_branch = sanity_checks(repo)
     latest_tag = run_command(['git', 'describe', '--tags', '--abbrev=0'])
     version = autoincrement_version(latest_tag)
-    remotes = run_command(['git', 'remote']).split()
-    remote = guess_remote(repo, remotes)
     username = getpass.getuser()
     token = detect_github_token()
-    editor = os.getenv('EDITOR')
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--version",
                         help=f"Set the version for the release (Default: {version})",
                         default=version)
-    parser.add_argument(
-        "-r", "--remote",
-        help=f"Set the git remote on GitHub to push the release changes to (Default: {remote})",
-        default=remote)
     parser.add_argument("-u", "--user", help=f"Set the username on GitHub (Default: {username})",
                         default=username)
     parser.add_argument("-t", "--token", help=f"Set the GitHub token (token found: {bool(token)})",
                         default=token)
-    parser.add_argument(
-        "-e", "--editor",
-        help=f"Set which editor shall be used to edit NEWS.md (Default: {editor})",
-        default=editor)
     parser.add_argument(
         "-b", "--base",
         help=f"Set the base branch that the release targets (Default: {current_branch})",
         default=current_branch)
     parser.add_argument("-s", '--start-from',
                         choices=[
-                            "step_prepare_branch_and_bump_version",
-                            "step_udpate_news",
-                            "step_add_commit",
-                            "step_push_remote",
-                            "step_wait_merge",
-                            "step_update_from_upstream",
-                            "step_tag_release_version",
-                            "step_push_release_tag",
-                            "step_create_github_release",
-                            "step_check_PR_fedora",
-                            "step_kerberos_ticket",
-                            "step_schedule_fedora_builds"
+                            "step_create_release_tag",
+                            "step_fedora_builds"
                         ],
                         help='Specify a step to restart the script from')
     args = parser.parse_args()
 
     args.latest_tag = latest_tag
-
-    if len(remotes) > 2 and args.remote is None:
-        msg_error("You have more than two 'git remotes' specified, so guessing where to "
-                  "create the pull request from would likely fail.\n"
-                  f"       Please use the --remote argument to set the correct one: {remotes}")
 
     msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 

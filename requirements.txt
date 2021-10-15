@@ -1,5 +1,4 @@
 # release.py
 ghapi
-mistune
 pyyaml
 pexpect
