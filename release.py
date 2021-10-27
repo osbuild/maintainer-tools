@@ -11,6 +11,7 @@ import sys
 import os
 import getpass
 import tempfile
+import time
 from datetime import date
 import yaml
 import pexpect
@@ -142,6 +143,8 @@ def list_prs_for_hash(args, api, repo, commit_hash):
             ret = items[0]
         else:
             msg_info(f"There are {len(items)} pull requests associated with {commit_hash} - skipping...")
+            for item in items:
+                msg_info(f"{item.html_url}")
             ret = None
     else:
         ret = None
@@ -156,8 +159,11 @@ def get_pullrequest_infos(args, repo, api, hashes):
 
     for commit_hash in hashes:
         i += 1
+        print(f"Fetching PR {i}")
+        time.sleep(2)
         pull_request = list_prs_for_hash(args, api, repo, commit_hash)
-        msg = f"  * {pull_request.title} (#{pull_request.number})"
+        if pull_request is not None:
+            msg = f"  * {pull_request.title} (#{pull_request.number})"
         summaries.append(msg)
 
     summaries = list(dict.fromkeys(summaries))
