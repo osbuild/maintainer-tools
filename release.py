@@ -10,11 +10,9 @@ import subprocess
 import sys
 import os
 import getpass
-import tempfile
 import time
 from datetime import date
 import yaml
-import pexpect
 from ghapi.all import GhApi
 
 
@@ -208,61 +206,6 @@ def create_release_tag(args, repo, api):
     subprocess.call(['git', 'tag', '-s', '-e', '-m', message, f'v{args.version}', 'HEAD'])
 
 
-def kinit(args):
-    """Get a Kerberos ticket for FEDORAPROJECT.ORG"""
-    domain = "FEDORAPROJECT.ORG"
-    password = getpass.getpass(f"Password for {args.user}@{domain}: ")
-
-    child = pexpect.spawn(f'kinit {args.user}@{domain}', timeout=60,
-                          echo=False)
-    try:
-        child.expect(".*:")
-        child.sendline(password)
-    except OSError as err:
-        print(f"kinit with pexpect raised OSError: {err}")
-
-    child.wait()
-    res = run_command(['klist'])
-    msg_info(f"Currently valid Kerberos tickets:\n{res}")
-
-
-def schedule_fedora_builds(repo):
-    """Schedule builds for all active Fedora releases"""
-    fedoras = ['rawhide', 'f35', 'f34', 'f33']
-    if repo == "osbuild":
-        url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=29756"
-    elif repo == "osbuild-composer":
-        url = "https://koji.fedoraproject.org/koji/packageinfo?packageID=31032"
-    else:
-        msg_error(f"Unsupported repository '{repo}'. Currently only osbuild and osbuild-composer are supported.")
-
-    wd = os.getcwd()
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        os.chdir(tmpdir)
-        run_command(['fedpkg', 'clone', repo])
-        os.chdir(os.path.join(tmpdir, repo))
-
-        for fedora in fedoras:
-            msg_info(f"Scheduling build for Fedora {fedora} (this may take a while)")
-            res = run_command(['git', 'checkout', fedora])
-            print(res)
-            res = run_command(['fedpkg', 'build'])
-            print(res)
-
-            if "completed successfully" in res:
-                msg_ok(f"Build for {fedora} done.")
-
-                if fedora != "rawhide":
-                    msg_info(f"Updating bodhi for {fedora}...")
-                    res = run_command(['fedpkg', 'update', '--type', 'enhancement',
-                                      '--notes', f'Update {repo} to the latest version'])
-                    print(res)
-
-    os.chdir(wd)
-    msg_info(f"Check {url} for all {repo} builds.")
-
-
 def print_config(args, repo):
     """Print the values used for the release playbook"""
     print("\n--------------------------------\n"
@@ -280,34 +223,6 @@ def step_create_release_tag(args, repo, api):
     res = step("Create a tag for the release", None, None)
     if res != "skipped":
         create_release_tag(args, repo, api)
-
-
-def step_kerberos_ticket(args):
-    res = step(f"Get Kerberos ticket for {args.user}@FEDORAPROJECT.ORG",
-               None, None)
-    if res != "skipped":
-        kinit(args)
-
-
-def step_schedule_fedora_builds(repo):
-    res = step("Schedule builds for all active Fedora releases", None, None)
-    if res != "skipped":
-        schedule_fedora_builds(repo)
-
-
-def release_playbook(args, repo, api):
-    """Execute all steps of the release playbook"""
-    start_from = args.start_from
-    print(start_from)
-
-    if start_from in (None, "step_create_release_tag"):
-        start_from = None
-        step_create_release_tag(args, repo, api)
-        step("Push the release tag upstream", ['git', 'push', 'origin', f'v{args.version}'], None)
-    if start_from in (None, "step_fedora_builds"):
-        start_from = None
-        step_kerberos_ticket(args)
-        step_schedule_fedora_builds(repo)
 
 
 def main():
@@ -348,8 +263,8 @@ def main():
 
     print_config(args, repo)
 
-    # Run the release playbook
-    release_playbook(args, repo, api)
+    # Create a release tag
+    step_create_release_tag(args, repo, api)
 
 
 if __name__ == "__main__":
