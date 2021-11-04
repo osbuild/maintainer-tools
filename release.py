@@ -66,6 +66,11 @@ def sanity_checks(repo):
         msg_info("The working directory is not clean.\n"
                  "You have the following unstaged or uncommitted changes:\n"
                  f"{status}")
+    has_gpg_key = run_command(['git', 'config', '--get', 'user.signingkey'])
+    if has_gpg_key == "":
+        msg_error("There is no GPG key set in your git configuration so you cannot create a signed tag.\n"
+                  "Please set one using 'git config --set user.signingkey FINGERPRINT'")
+
     return current_branch
 
 
