@@ -224,6 +224,7 @@ def step_create_release_tag(args, repo, api):
     if res != "skipped":
         create_release_tag(args, repo, api)
 
+    step("Push the release tag upstream", ['git', 'push', 'origin', f'v{args.version}'], None)
 
 def main():
     """Main function"""
