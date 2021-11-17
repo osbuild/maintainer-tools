@@ -248,12 +248,7 @@ def main():
         "-b", "--base",
         help=f"Set the base branch that the release targets (Default: {current_branch})",
         default=current_branch)
-    parser.add_argument("-s", '--start-from',
-                        choices=[
-                            "step_create_release_tag",
-                            "step_fedora_builds"
-                        ],
-                        help='Specify a step to restart the script from')
+
     args = parser.parse_args()
 
     args.latest_tag = latest_tag
