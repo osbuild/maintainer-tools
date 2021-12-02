@@ -173,7 +173,7 @@ def get_pullrequest_infos(args, repo, api, hashes):
 
     summaries = list(dict.fromkeys(summaries))
     msg_ok(f"Collected summaries from {len(summaries)} pull requests ({i} commits).")
-    return "\n\n".join(summaries)
+    return "\n".join(summaries)
 
 
 def get_contributors(args):
