@@ -255,6 +255,9 @@ def main():
 
     args.latest_tag = latest_tag
 
+    if args.token is None:
+        msg_error("Please supply a valid GitHub token.")
+
     msg_info(f"Updating branch '{args.base}' to avoid conflicts...\n{run_command(['git', 'pull'])}")
 
     api = GhApi(repo=repo, owner='osbuild', token=args.token)
