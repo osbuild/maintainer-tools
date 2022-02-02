@@ -71,6 +71,12 @@ def sanity_checks(repo):
                   "'gpg --list-secret-keys --keyid-format=long'\n"
                   "Please then set it using 'git config --global user.signingkey FINGERPRINT'")
 
+    valid_origins = [f"https://github.com/osbuild/{repo}.git", f"git@github.com:osbuild/{repo}.git"]
+    origin_url = run_command(['git', 'remote', 'get-url', 'origin'])
+    if origin_url not in valid_origins:
+        msg_error("The 'origin' remote is not properly configured.\n"
+                  "Make sure to have a remote named 'origin' pointed to the upstream repository.")
+
     return current_branch
 
 
