@@ -75,7 +75,8 @@ def sanity_checks(repo):
     origin_url = run_command(['git', 'remote', 'get-url', 'origin'])
     if origin_url not in valid_origins:
         msg_error("The 'origin' remote is not properly configured.\n"
-                  "Make sure to have a remote named 'origin' pointed to the upstream repository.")
+                  "Make sure to have a remote named 'origin' pointed to the upstream repository.\n"
+                  f"E.g. by running 'git remote add origin git@github.com:osbuild/{repo}.git'")
 
     return current_branch
 
