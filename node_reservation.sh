@@ -352,6 +352,13 @@ function node_uploadiff(){
         return 1
     fi
 
+    # clean
+    $ssh_base "cd $project && git clean -f -d" &> /dev/null
+    if [ $? -gt 0 ]; then
+        _redecho "can't clean remote"
+        return 1
+    fi
+
     # send the patch to the remote
     rsync -e "ssh -i ${PEMLOCATION}" -aAX /tmp/patchforremote $AMILOGIN@${AWSHOST}:/tmp/patchforremote
     $ssh_base "cd $project && git apply /tmp/patchforremote"
