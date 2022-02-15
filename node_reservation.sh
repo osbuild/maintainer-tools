@@ -263,6 +263,7 @@ EOF
     _boldecho "Performing base package installation"
     ssh -oStrictHostKeyChecking=no -i $PEMLOCATION $AMILOGIN@$AWSHOST -t \
         sudo dnf -q -y install htop \
+        pylint \
         skopeo \
         tmux \
         make \
