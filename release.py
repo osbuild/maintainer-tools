@@ -43,8 +43,8 @@ def msg_ok(body):
 
 def sanity_checks(repo):
     """Check if we are in a git repo, on the right branch and up-to-date"""
-    if "osbuild" not in repo:
-        msg_info("This script is only tested with 'osbuild' and 'osbuild-composer'.")
+    if repo not in ['osbuild', 'osbuild-composer', 'cockpit-composer']:
+        msg_info("This script is only tested with 'cockpit-composer', 'osbuild', and 'osbuild-composer'.")
 
     is_git = run_command(['git', 'rev-parse', '--is-inside-work-tree'])
     if is_git != "true":
