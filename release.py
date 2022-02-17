@@ -175,7 +175,10 @@ def get_pullrequest_infos(args, repo, api, hashes):
         time.sleep(2)
         pull_request = list_prs_for_hash(args, api, repo, commit_hash)
         if pull_request is not None:
-            msg = f"  * {pull_request.title} (#{pull_request.number})"
+            if repo == "cockpit-composer":
+                msg = f"- {pull_request.title} (#{pull_request.number})"
+            else:
+                msg = f"  * {pull_request.title} (#{pull_request.number})"
         summaries.append(msg)
 
     summaries = list(dict.fromkeys(summaries))
@@ -206,11 +209,15 @@ def create_release_tag(args, repo, api):
     print("\n".join(hashes))
     summaries = get_pullrequest_infos(args, repo, api, hashes)
 
-    message = (f"CHANGES WITH {args.version}:\n\n"
-               f"----------------\n"
-               f"{summaries}\n\n"
-               f"Contributions from: {contributors}\n\n"
-               f"— Location, {today.strftime('%Y-%m-%d')}")
+    if repo == "cockpit-composer":
+        message = (f"{args.version}:\n\n"
+               f"{summaries}\n")
+    else:
+        message = (f"CHANGES WITH {args.version}:\n\n"
+                f"----------------\n"
+                f"{summaries}\n\n"
+                f"Contributions from: {contributors}\n\n"
+                f"— Location, {today.strftime('%Y-%m-%d')}")
 
     subprocess.call(['git', 'tag', '-s', '-e', '-m', message, f'v{args.version}', 'HEAD'])
 
