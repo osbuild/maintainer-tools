@@ -210,16 +210,18 @@ def create_release_tag(args, repo, api):
     summaries = get_pullrequest_infos(args, repo, api, hashes)
 
     if repo == "cockpit-composer":
+        tag = args.version
         message = (f"{args.version}:\n\n"
                f"{summaries}\n")
     else:
+        tag = f'v{args.version}'
         message = (f"CHANGES WITH {args.version}:\n\n"
                 f"----------------\n"
                 f"{summaries}\n\n"
                 f"Contributions from: {contributors}\n\n"
                 f"— Location, {today.strftime('%Y-%m-%d')}")
 
-    subprocess.call(['git', 'tag', '-s', '-e', '-m', message, f'v{args.version}', 'HEAD'])
+    subprocess.call(['git', 'tag', '-s', '-e', '-m', message, tag, 'HEAD'])
 
 
 def print_config(args, repo):
@@ -239,8 +241,13 @@ def step_create_release_tag(args, repo, api):
     res = step("Create a tag for the release", None, None)
     if res != "skipped":
         create_release_tag(args, repo, api)
+    if repo == "cockpit-composer":
+        tag = args.version
+    else:
+        tag = f'v{args.version}'
 
-    step("Push the release tag upstream", ['git', 'push', 'origin', f'v{args.version}'], None)
+    step("Push the release tag upstream", ['git', 'push', 'origin', tag], None)
+
 
 def main():
     """Main function"""
