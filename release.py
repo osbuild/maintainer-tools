@@ -210,7 +210,7 @@ def create_release_tag(args, repo, api):
     summaries = get_pullrequest_infos(args, repo, api, hashes)
 
     if repo == "cockpit-composer":
-        tag = args.version
+        tag = str(args.version)
         message = (f"{args.version}:\n\n"
                f"{summaries}\n")
     else:
@@ -242,7 +242,7 @@ def step_create_release_tag(args, repo, api):
     if res != "skipped":
         create_release_tag(args, repo, api)
     if repo == "cockpit-composer":
-        tag = args.version
+        tag = str(args.version)
     else:
         tag = f'v{args.version}'
 
