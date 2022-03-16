@@ -95,21 +95,24 @@ def step(action, args, verify):
     """Ask the user whether to accept (y) or skip (s) the step or cancel (N) the playbook"""
     ret = None
     while ret is None:
-        feedback = input(f"{fg.BOLD}Step: {fg.RESET}{action} ([y]es, [s]kip, [Q]uit) ").lower()
-        if feedback == "y":
-            if args is not None:
-                out = run_command(args)
-                if verify is not None:
-                    out = run_command(verify)
-
-                msg_ok(f"\n{out}")
+        if args.interactive is False:
             ret = "ok"
-        elif feedback == "s":
-            msg_info("Step skipped.")
-            ret = "skipped"
-        elif feedback in ("q", ""):
-            msg_info("Release playbook quit.")
-            sys.exit(0)
+        else:
+            feedback = input(f"{fg.BOLD}Step: {fg.RESET}{action} ([y]es, [s]kip, [Q]uit) ").lower()
+            if feedback == "y":
+                if args is not None:
+                    out = run_command(args)
+                    if verify is not None:
+                        out = run_command(verify)
+
+                    msg_ok(f"\n{out}")
+                ret = "ok"
+            elif feedback == "s":
+                msg_info("Step skipped.")
+                ret = "skipped"
+            elif feedback in ("q", ""):
+                msg_info("Release playbook quit.")
+                sys.exit(0)
 
     return ret
 
@@ -219,9 +222,12 @@ def create_release_tag(args, repo, api):
                 f"----------------\n"
                 f"{summaries}\n\n"
                 f"Contributions from: {contributors}\n\n"
-                f"— Location, {today.strftime('%Y-%m-%d')}")
+                f"— Somewhere on the internet, {today.strftime('%Y-%m-%d')}")
 
-    subprocess.call(['git', 'tag', '-s', '-e', '-m', message, tag, 'HEAD'])
+    if args.interactive:
+        subprocess.call(['git', 'tag', '-s', '-e', '-m', message, tag, 'HEAD'])
+    else:
+        subprocess.call(['git', 'tag', '-s', '-m', message, tag, 'HEAD'])
 
 
 def print_config(args, repo):
@@ -234,11 +240,12 @@ def print_config(args, repo):
           f"{fg.BOLD}GitHub{fg.RESET}:\n"
           f"  User:          {args.user}\n"
           f"  Token:         {bool(args.token)}\n"
+          f"  Interactive:   {args.interactive}\n"
           f"--------------------------------\n")
 
 
 def step_create_release_tag(args, repo, api):
-    res = step("Create a tag for the release", None, None)
+    res = step("Create a tag for the release", args, None)
     if res != "skipped":
         create_release_tag(args, repo, api)
     if repo == "cockpit-composer":
@@ -267,6 +274,8 @@ def main():
                         default=username)
     parser.add_argument("-t", "--token", help=f"Set the GitHub token (token found: {bool(token)})",
                         default=token)
+    parser.add_argument("-i", "--interactive", help="Create tag interactively, i.e. allow editing",
+                        default=True, action=argparse.BooleanOptionalAction)
     parser.add_argument(
         "-b", "--base",
         help=f"Set the base branch that the release targets (Default: {current_branch})",
