@@ -224,7 +224,9 @@ def create_release_tag(args, repo, api):
                 f"Contributions from: {contributors}\n\n"
                 f"— Somewhere on the internet, {today.strftime('%Y-%m-%d')}")
 
-    if args.interactive:
+    if args.dry_run:
+        msg_info(f"Tag {tag}\n{message}")
+    elif args.interactive:
         subprocess.call(['git', 'tag', '-s', '-e', '-m', message, tag, 'HEAD'])
     else:
         subprocess.call(['git', 'tag', '-s', '-m', message, tag, 'HEAD'])
@@ -240,7 +242,9 @@ def print_config(args, repo):
           f"{fg.BOLD}GitHub{fg.RESET}:\n"
           f"  User:          {args.user}\n"
           f"  Token:         {bool(args.token)}\n"
+          f"{fg.BOLD}Mode{fg.RESET}:\n"
           f"  Interactive:   {args.interactive}\n"
+          f"  Dry run:       {args.dry_run}\n"
           f"--------------------------------\n")
 
 
@@ -253,7 +257,11 @@ def step_create_release_tag(args, repo, api):
     else:
         tag = f'v{args.version}'
 
-    step("Push the release tag upstream", ['git', 'push', 'origin', tag], None)
+    action = f"Push the release tag '{tag}' upstream"
+    if args.dry_run:
+        msg_info(action)
+    else:
+        step(action, ['git', 'push', 'origin', tag], None)
 
 
 def main():
@@ -276,6 +284,8 @@ def main():
                         default=token)
     parser.add_argument("-i", "--interactive", help="Create tag interactively, i.e. allow editing",
                         default=True, action=argparse.BooleanOptionalAction)
+    parser.add_argument("--dry-run", help="Don't actually create a tag or push it",
+                        default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument(
         "-b", "--base",
         help=f"Set the base branch that the release targets (Default: {current_branch})",
