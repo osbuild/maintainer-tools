@@ -91,11 +91,11 @@ def run_command(argv):
     return result.strip()
 
 
-def step(action, args, verify):
+def step(action, cfg, args, verify):
     """Ask the user whether to accept (y) or skip (s) the step or cancel (N) the playbook"""
     ret = None
     while ret is None:
-        if args.interactive is False:
+        if cfg.interactive is False:
             ret = "ok"
         else:
             feedback = input(f"{fg.BOLD}Step: {fg.RESET}{action} ([y]es, [s]kip, [Q]uit) ").lower()
@@ -249,7 +249,7 @@ def print_config(args, repo):
 
 
 def step_create_release_tag(args, repo, api):
-    res = step("Create a tag for the release", args, None)
+    res = step("Create a tag for the release", args, None, None)
     if res != "skipped":
         create_release_tag(args, repo, api)
     if repo == "cockpit-composer":
@@ -261,7 +261,7 @@ def step_create_release_tag(args, repo, api):
     if args.dry_run:
         msg_info(action)
     else:
-        step(action, ['git', 'push', 'origin', tag], None)
+        step(action, args, ['git', 'push', 'origin', tag], None)
 
 
 def main():
