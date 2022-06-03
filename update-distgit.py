@@ -86,7 +86,10 @@ def update_distgit(user: str, project: str, version: str, author: str, pkgtool: 
     with extracted_tarball(tarball) as path:
         upstream_specfile = read_file(f"{path}/{project}-{version}/{specfile}")
 
-    new_downstream_specfile = merge_specfiles(upstream_specfile, old_downstream_specfile, version, author)
+    new_downstream_specfile = merge_specfiles(upstream_specfile,
+                                              old_downstream_specfile,
+                                              version,
+                                              author)
 
     with open(specfile, "w", encoding="utf-8") as f:
         f.write(new_downstream_specfile)
@@ -102,15 +105,20 @@ def update_distgit(user: str, project: str, version: str, author: str, pkgtool: 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument("--version", metavar="VERSION", type=str, help="version to be released to downstream",
+    parser.add_argument("--version", metavar="VERSION", type=str,
+                        help="version to be released to downstream",
                         required=True)
     parser.add_argument("--author", metavar="AUTHOR", type=str,
-                        help="author of the downstream change (format: Name Surname <email@example.com>", required=True)
-    parser.add_argument("--pkgtool", metavar="PKGTOOL", type=str, help="fedpkg, centpkg, or rhpkg", required=True)
+                        help="author of the downstream change"
+                        "(format: Name Surname <email@example.com>",
+                        required=True)
+    parser.add_argument("--pkgtool", metavar="PKGTOOL", type=str, help="fedpkg, centpkg, or rhpkg",
+                        required=True)
     parser.add_argument("--release", metavar="RELEASE", type=str,
                         help="distribution release (required only for centpkg)")
     parser.add_argument("--project", metavar="PROJECT", type=str,
-                        help="project under github.com/osbuild to be updated (e.g. osbuild)", required=True)
+                        help="project under github.com/osbuild to be updated (e.g. osbuild)",
+                        required=True)
     args = parser.parse_args()
 
     if args.pkgtool not in ["fedpkg", "centpkg", "rhpkg"]:
