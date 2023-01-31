@@ -7,10 +7,57 @@ import platform
 import shutil
 import subprocess
 import sys
-
+import shutil
+from contextlib import contextmanager
 
 RESET = "\033[0m"
 BOLD = "\033[1m"
+
+def read_ssh_key(ssh_key_file):
+    for l in ssh_key_file.readlines():
+        if " " in l:
+            if l.split(" ")[0] == "ssh-rsa":
+                return l.split(" ")[1]
+
+@contextmanager
+def gen_cloud_init_files(rundir, username, password, ssh_key, override, verbose=False):
+    cfghome = os.getenv("XDG_CONFIG_HOME", default=os.path.expanduser("~/.config"))
+    cfgdir = os.path.join(cfghome, "vmci")
+    if verbose:
+        print(f"cfgdir: {cfgdir}")
+        print(f"rundir: {rundir}")
+
+    datdir = os.path.join(rundir, "data")
+    try:
+        shutil.copytree(cfgdir, datdir)
+    except FileNotFoundError:
+        os.mkdir(datdir)
+
+    if not os.path.exists(os.path.join(datdir, "meta-data")):
+        shutil.copy("meta-data", os.path.join(datdir, "meta-data"))
+
+    if not os.path.exists(os.path.join(datdir, "user-data")) or override:
+        if not ssh_key:
+            raise RuntimeError("You must provide sshkey if you generate a cloudinit on the fly")
+        if not password:
+            print(f"Password is set to {username} because it was not provided")
+            password = username
+        with open("user-data.sample", "r") as sample:
+            with open(os.path.join(datdir, "user-data"), "w") as ud:
+                for l in sample.readlines():
+                    if "{USERNAME}" in l:
+                        ud.write(l.replace("{USERNAME}", username))
+                    elif "{PASSWORD}" in l:
+                        ud.write(l.replace("{PASSWORD}", password))
+                    elif "{SSHKEY}" in l:
+                        ud.write(l.replace("{SSHKEY}", ssh_key))
+                    else:
+                        ud.write(l)
+    try:
+        yield datdir
+    except Exception as e:
+        print(e, file=sys.stderr)
+    os.remove(os.path.join(datdir, "user-data"))
 
 
 def genisoimage(rundir, datdir):
@@ -24,7 +71,6 @@ def genisoimage(rundir, datdir):
         "-quiet",
         f"{datdir}/user-data",
         f"{datdir}/meta-data"]
-
     subprocess.run(args, check=True)
 
 
@@ -36,8 +82,7 @@ def is_darwin():
 def machine_id():
     if is_darwin():
         args = [
-            "ioreg", "-rd1", "-c", "IOPlatformExpertDevice"
-        ]
+            "ioreg", "-rd1", "-c", "IOPlatformExpertDevice"]
         r = subprocess.run(args, stdout=subprocess.PIPE, check=True)
         data = r.stdout.decode("utf-8").strip()
         for l in data.split("\n"):
@@ -74,6 +119,22 @@ def main():
     parser.add_argument("--persist", default=False, action="store_true")
     parser.add_argument("--verbose", default=False, action="store_true")
     parser.add_argument("--cdrom", type=str, help="CD-ROM to use (disables cloud init)")
+    parser.add_argument("--username",
+                        type=str,
+                        default=os.getlogin(),
+                        help="username to setup in the vm")
+    parser.add_argument("--password",
+                        type=str,
+                        help="password for the --username")
+    ssh_dir = os.path.expanduser("~/.ssh")
+    parser.add_argument("--ssh-key",
+                        type=argparse.FileType('r'),
+                        default=os.path.join(ssh_dir, "id_rsa.pub"),
+                        help="ssh public key file to log into the vm")
+    parser.add_argument("--override-user-data",
+                        default=False,
+                        action="store_true",
+                        help="override the user-data file with a generated one")
     parser.add_argument("image", type=str, help="The image to boot")
     parser.set_defaults(architecture="x86_64")
     subparsers = parser.add_subparsers(help="commands")
@@ -100,109 +161,107 @@ def main():
     argv, extra = parser.parse_known_args()
     argv = vars(argv)
 
-    cfghome = os.getenv("XDG_CONFIG_HOME", default=os.path.expanduser("~/.config"))
     runtimedir = os.getenv("XDG_RUNTIME_DIR", default="/tmp")
-
-    cfgdir = os.path.join(cfghome, "vmci")
     rundir = os.path.join(runtimedir, "vmci")
-    datdir = os.path.join(rundir, "data")
-
-    if argv["verbose"]:
-        print(f"cfgdir: {cfgdir}")
-        print(f"rundir: {rundir}")
-
     shutil.rmtree(rundir, ignore_errors=True)
     os.makedirs(rundir, exist_ok=True)
-    shutil.copytree(cfgdir, datdir)
 
-    genisoimage(rundir, datdir)
+    username = argv.get("username")
+    password = argv.get("password")
+    ssh_key = read_ssh_key(argv.get("ssh_key"))
+    override = argv.get("override-user-data")
+    with gen_cloud_init_files(rundir, username, password, ssh_key, override,
+                              argv["verbose"]) as datdir:
+        genisoimage(rundir, datdir)
 
-    arch = argv["architecture"]
+        arch = argv["architecture"]
 
-    if arch == "x86_64":
-        args = ["qemu-system-x86_64"]
-        args += [
-            "-machine",
-            "q35"
-        ]
-        if argv.get("secureboot", False):
-            omvf = find_omvf()
+        if arch == "x86_64":
+            args = ["qemu-system-x86_64"]
             args += [
-                "-drive",
-                f"file={omvf}/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on",
-                "-drive",
-                f"file={omvf}/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off",
+                "-machine",
+                "q35",
+                "-cpu",
+                "host",
             ]
-        elif argv.get("uefi", False):
-            omvf = find_omvf()
+            if argv.get("secureboot", False):
+                omvf = find_omvf()
+                args += [
+                    "-drive",
+                    f"file={omvf}/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on",
+                    "-drive",
+                    f"file={omvf}/OVMF_VARS.secboot.fd,if=pflash,format=raw,unit=1,readonly=off",
+                ]
+            elif argv.get("uefi", False):
+                omvf = find_omvf()
 
-            args += [
-                "-drive", f"file={omvf}/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"
+                args += [
+                    "-drive", f"file={omvf}/OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on"
+                ]
+        elif arch == "aarch64":
+            args = [
+                "qemu-system-aarch64",
+                "-M", "virt",
+                "-bios", "/usr/share/edk2/aarch64/QEMU_EFI.fd",
+                "-boot", "efi",
+                "-cpu", "cortex-a57"
             ]
-    elif arch == "aarch64":
-        args = [
-            "qemu-system-aarch64",
-            "-M", "virt",
-            "-bios", "/usr/share/edk2/aarch64/QEMU_EFI.fd",
-            "-boot", "efi",
-            "-cpu", "cortex-a57"
-        ]
-    elif arch == "s390x":
-        args = ['qemu-system-s390x']
-    elif arch == "ppc64le":
-        args = ['qemu-system-ppc64']
-    else:
-        print("unsupported architecture", file=sys.stderr)
-        sys.exit(1)
-
-    if platform.machine() == arch:
-        if is_darwin():
-            args += ["-M", "accel=hvf"]
+        elif arch == "s390x":
+            args = ['qemu-system-s390x']
+        elif arch == "ppc64le":
+            args = ['qemu-system-ppc64']
         else:
-            args += ['-enable-kvm']
-    else:
-        print("Acceleration: off")
+            print("unsupported architecture", file=sys.stderr)
+            sys.exit(1)
 
-    if not argv["persist"]:
-        args += ["-snapshot"]
+        if platform.machine() == arch:
+            if is_darwin():
+                args += ["-M", "accel=hvf"]
+            else:
+                args += ['-enable-kvm']
+        else:
+            print("Acceleration: off")
 
-    portfwd = {
-        2222:22,
-        9091:9090
-    }
+        if not argv["persist"]:
+            args += ["-snapshot"]
 
-    for local, remote in portfwd.items():
-        print(f"port {BOLD}{local}{RESET} → {BOLD}{remote}{RESET}")
+        portfwd = {
+            2222: 22,
+            9091: 9090
+        }
 
-    fwds = [f"hostfwd=tcp::{h}-:{g}" for h, g in portfwd.items()]
+        for local, remote in portfwd.items():
+            print(f"port {BOLD}{local}{RESET} → {BOLD}{remote}{RESET}")
 
-    # create a new mac address based on our machine id
-    data = machine_id()
+        fwds = [f"hostfwd=tcp::{h}-:{g}" for h, g in portfwd.items()]
 
-    maclst = ["FE"] + [data[x:x+2] for x in range(-12, -2, 2)]
-    macstr = ":".join(maclst)
+        # create a new mac address based on our machine id
+        data = machine_id()
 
-    print(f"MAC: {BOLD}{macstr}{RESET}")
+        maclst = ["FE"] + [data[x:x+2] for x in range(-12, -2, 2)]
+        macstr = ":".join(maclst)
 
-    cdrom = argv.get("cdrom")
-    if not cdrom:
-        cdrom = f"{rundir}/cloudinit.iso"
+        print(f"MAC: {BOLD}{macstr}{RESET}")
 
-    args += [
-        "-m", str(argv["memory"]),
-        "-drive", "file=%s" % argv["image"],
-        "-cdrom", cdrom,
-        "-device", f"virtio-net-pci,netdev=n0,mac={macstr}",
-        "-netdev", "user,id=n0,net=10.0.2.0/24," + ",".join(fwds),
-    ] + extra
+        cdrom = argv.get("cdrom")
+        if not cdrom:
+            cdrom = f"{rundir}/cloudinit.iso"
 
-    if argv["verbose"]:
-        print(" ".join(args))
+        args += [
+            "-m", str(argv["memory"]),
+            "-drive", "file=%s" % argv["image"],
+            "-cdrom", cdrom,
+            "-device", f"virtio-net-pci,netdev=n0,mac={macstr}",
+            "-netdev", "user,id=n0,net=10.0.2.0/24," + ",".join(fwds),
+        ] + extra
 
-    try:
-        res = subprocess.run(args, check=False)
-    except KeyboardInterrupt:
-        print("Aborted")
+        if argv["verbose"]:
+            print(" ".join(args))
+
+        try:
+            res = subprocess.run(args, check=False)
+        except KeyboardInterrupt:
+            print("Aborted")
 
     return res.returncode
 

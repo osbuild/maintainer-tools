@@ -1,0 +1,22 @@
+#cloud-config
+users:
+  - default
+  - name: {USERNAME}
+    gecos: CK
+    sudo: 'ALL=(ALL) NOPASSWD:ALL'
+    ssh_pwauth: True
+    ssh_authorized_keys:
+      - ssh-rsa {SSHKEY}
+  - name: root
+    gecos: CK
+    ssh_pwauth: True
+    ssh_authorized_keys:
+      - ssh-rsa {SSHKEY}
+chpasswd:
+  list: |
+    root:{PASSWORD}
+    {USERNAME}:{PASSWORD}
+  expire: False
+growpart:
+  mode: auto
+  devices: ['/']
