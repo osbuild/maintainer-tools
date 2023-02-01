@@ -28,13 +28,15 @@ def gen_cloud_init_files(rundir, username, password, ssh_key, override, verbose=
         print(f"rundir: {rundir}")
 
     datdir = os.path.join(rundir, "data")
+    basdir = os.path.dirname(__file__)
     try:
         shutil.copytree(cfgdir, datdir)
     except FileNotFoundError:
         os.mkdir(datdir)
 
     if not os.path.exists(os.path.join(datdir, "meta-data")):
-        shutil.copy("meta-data", os.path.join(datdir, "meta-data"))
+        shutil.copy(os.path.join(basdir,"meta-data"),
+                    os.path.join(datdir, "meta-data"))
 
     if not os.path.exists(os.path.join(datdir, "user-data")) or override:
         if not ssh_key:
@@ -42,7 +44,7 @@ def gen_cloud_init_files(rundir, username, password, ssh_key, override, verbose=
         if not password:
             print(f"Password is set to {username} because it was not provided")
             password = username
-        with open("user-data.sample", "r") as sample:
+        with open(os.path.join(basdir,"user-data.sample"), "r") as sample:
             with open(os.path.join(datdir, "user-data"), "w") as ud:
                 for l in sample.readlines():
                     if "{USERNAME}" in l:

@@ -112,9 +112,10 @@ def make_request_file(distribution, name, architecture, packages):
 
 def get_cache_dir():
     # check if local cache exists if not create it
-    if not os.path.isdir(".cache"):
-        os.mkdir(".cache")
-    return ".cache"
+    cache_dir = os.path.join(os.path.dirname(__file__),".cache")
+    if not os.path.isdir(cache_dir):
+        os.mkdir(cache_dir)
+    return cache_dir
 
 
 def download(url, destination):
@@ -267,8 +268,8 @@ def main():
 
 
         print("\nRunning:\n")
-        print(" ".join(["./vm"]+shlex.split(args.vm_args)+[image, args.architecture]))
-        subprocess.run(["./vm"]+shlex.split(args.vm_args)+[image, args.architecture])
+        print(" ".join([os.path.join(os.path.dirname(__file__),"vm")]+shlex.split(args.vm_args)+[image, args.architecture]))
+        subprocess.run([os.path.join(os.path.dirname(__file__),"vm")]+shlex.split(args.vm_args)+[image, args.architecture])
     return 0
 
 
