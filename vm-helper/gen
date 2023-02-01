@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+
+import argparse
+import shlex
+import os
+import subprocess
+import sys
+import json
+import tempfile
+import time
+from contextlib import contextmanager
+
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
+
+def short_lived_token(token):
+    command = ["curl",
+               "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token",
+               "-d",
+               "grant_type=refresh_token",
+               "-d",
+               "client_id=rhsm-api",
+               "-d",
+               f"refresh_token={token}",
+               "-s"]
+    obj = json.loads(subprocess.check_output(command))
+    return obj["access_token"]
+
+
+def send_build_request(token, request_fn):
+    command = ["curl",
+               "-H", f'Authorization: Bearer {token}',
+               "-d", f'@{request_fn}',
+               "-X", "POST",
+               "-H", 'Content-Type: application/json',
+               "https://console.redhat.com/api/image-builder/v1/compose",
+               "-s"
+               ]
+    p = subprocess.Popen(command, stdout=subprocess.PIPE)
+    p.wait()
+    output, errors = p.communicate()
+    try:
+        obj = json.loads(output)
+        rid = obj["id"]
+        if not rid:
+            print(f"error: {json.dumps(obj)}")
+        return rid
+    except:
+        obj = json.loads(errors)
+        raise RuntimeError(json.dumps(obj))
+
+
+def wait_build(token, request_id):
+    print("Building:")
+    last_status = ""
+    while True:
+        time.sleep(2)
+        command = ["curl",
+                   "-H",
+                   f'Authorization: Bearer {token}',
+                   "-H",
+                   'Content-Type: application/json',
+                   f"https://console.redhat.com/api/image-builder/v1/composes/{request_id}",
+                   "-s"
+                   ]
+        obj = json.loads(subprocess.check_output(command))
+        if "image_status" in obj:
+            if obj["image_status"].get("status") in ['success', 'failure']:
+                if "upload_status" in obj["image_status"]:
+                    print("\n")
+                    if obj["image_status"]["upload_status"].get("status") == "success":
+                        return obj["image_status"]["upload_status"]["options"]["url"]
+                    else:
+                        raise RuntimeError(f"failed to build image {json.dumps(obj)}")
+            else:
+                if obj["image_status"].get("status") != last_status:
+                    last_status = obj["image_status"].get("status")
+                    print(f"\n    * {obj['image_status'].get('status')} .", end="", flush=True)
+                else:
+                    print(".", end="", flush=True)
+
+
+@contextmanager
+def make_request_file(distribution, name, architecture, packages):
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        request_file = os.path.join(tmpdirname, "request.json")
+        with open(request_file, "w") as r:
+            json.dump({
+                "distribution": distribution,
+                "image_name": name,
+                "image_requests": [
+                    {
+                      "architecture": architecture,
+                      "image_type": "guest-image",
+                      "upload_request": {
+                          "type": "aws.s3",
+                          "options": {}
+                      }
+                      }
+                ],
+                "customizations": {
+                    "packages": packages
+                }
+            }, r)
+        try:
+            yield request_file
+        except Exception as e:
+            print(e, file=sys.stderr)
+        os.remove(request_file)
+
+
+def get_cache_dir():
+    # check if local cache exists if not create it
+    if not os.path.isdir(".cache"):
+        os.mkdir(".cache")
+    return ".cache"
+
+
+def download(url, destination):
+    print("Downloading:")
+    command = ["curl",
+               url,
+               "-o",
+               destination]
+    return subprocess.check_output(command)
+
+
+def get_offline_token(args):
+    if args.offline_token:
+        return args.offline_token
+    elif args.offline_token_command:
+        command = shlex.split(args.offline_token_command)
+        return subprocess.check_output(command).decode("utf-8").replace("\n", "")
+
+
+@contextmanager
+def generate_image(offline_token, name, distribution, arch, pkgs, keep,
+                   from_cache):
+    print()
+
+    # Check if we need to return an object from the cache instead of building it
+    cache_dir = get_cache_dir()
+    filename = f"{name}_{distribution}_{arch}.qcow2"
+    if from_cache and os.path.exists(os.path.join(cache_dir, filename)):
+        print("Found image in cache\n")
+        yield os.path.join(cache_dir, filename)
+        return
+    if from_cache:
+        print("Not in cache, building\n")
+
+    token = short_lived_token(offline_token)
+    print("Generating image with parameters:\n")
+    print(f"    Image name {name}")
+    print(f"    Distribution {distribution}")
+    print(f"    Architecture {arch}")
+    print(f"    Packages {pkgs}")
+    print(f"    Keep in cache {keep}")
+    print()
+
+    # Send build request
+    request_id = None
+    with make_request_file(distribution, name, arch, pkgs) as request_fn:
+        request_id = send_build_request(token, request_fn)
+    if not request_id:
+        raise RuntimeError("No request id, check errors")
+
+    # wait until it's built
+    url = wait_build(token, request_id)
+    if not url:
+        raise RuntimeError("No URL to download from")
+
+    # Download the image, either in cache or in a tmp folder
+    with tempfile.TemporaryDirectory() as dl_dir:
+        if keep:
+            dl_dir = cache_dir
+        destination = os.path.join(dl_dir, filename)
+        try:
+            download(url, destination)
+            yield destination
+        except Exception as e:
+            print(e)
+        # clean the destination if it was temporary
+        if not keep:
+            os.remove(destination)
+
+
+def main():
+    gen_parser = argparse.ArgumentParser(description=
+                                         'Generates, downloads and runs '
+                                         'an image to run')
+    group = gen_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--offline-token",
+                       type=str,
+                       help="Offline token provided by https://access.redhat.com/management/api"
+                       )
+    group.add_argument("--offline-token-command",
+                       default="pass offline_token",
+                       type=str,
+                       help="Command to retrieve the offline token"
+                       )
+    gen_parser.add_argument("--name",
+                            required=True,
+                            type=str,
+                            help="Image name"
+                            )
+    gen_parser.add_argument("--distribution",
+                            required=True,
+                            type=str,
+                            choices=[
+                                "centos-8",
+                                "centos-9",
+                                "fedora-34",
+                                "fedora-35",
+                                "fedora-36",
+                                "fedora-37",
+                                "rhel-84",
+                                "rhel-85",
+                                "rhel-86",
+                                "rhel-87",
+                                "rhel-88",
+                                "rhel-90",
+                                "rhel-91",
+                            ],
+                            help="The distribution to generate"
+                            )
+    gen_parser.add_argument("--architecture",
+                            required=True,
+                            type=str,
+                            choices=[
+                                "x86_64",
+                                "aarch64",
+                                "s390x",
+                                "ppc64le"],
+                            help="The architecture to generate"
+                            )
+    gen_parser.add_argument("--packages",
+                            required=True,
+                            nargs='+',
+                            type=str,
+                            help="The packages to install"
+                            )
+    gen_parser.add_argument("--keep",
+                            default=False,
+                            action="store_true",
+                            help="keep the image in cache after download")
+    gen_parser.add_argument("--from-cache",
+                            default=False,
+                            action="store_true",
+                            help="Try to load the image from cache instead of building it")
+    gen_parser.add_argument("--vm-args",
+                            type=str,
+                            default="",
+                            help="Extra args for the vm executable, if none"
+                            "given, will infer what is needed"
+                            )
+
+    args = gen_parser.parse_args()
+    with generate_image(
+            get_offline_token(args),
+            args.name,
+            args.distribution,
+            args.architecture,
+            args.packages,
+            args.keep,
+            args.from_cache) as image:
+
+
+        print("\nRunning:\n")
+        print(" ".join(["./vm"]+shlex.split(args.vm_args)+[image, args.architecture]))
+        subprocess.run(["./vm"]+shlex.split(args.vm_args)+[image, args.architecture])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
