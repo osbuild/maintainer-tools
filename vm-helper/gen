@@ -13,30 +13,7 @@ from contextlib import contextmanager
 RESET = "\033[0m"
 BOLD = "\033[1m"
 
-
-def short_lived_token(token):
-    command = ["curl",
-               "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token",
-               "-d",
-               "grant_type=refresh_token",
-               "-d",
-               "client_id=rhsm-api",
-               "-d",
-               f"refresh_token={token}",
-               "-s"]
-    obj = json.loads(subprocess.check_output(command))
-    return obj["access_token"]
-
-
-def send_build_request(token, request_fn):
-    command = ["curl",
-               "-H", f'Authorization: Bearer {token}',
-               "-d", f'@{request_fn}',
-               "-X", "POST",
-               "-H", 'Content-Type: application/json',
-               "https://console.redhat.com/api/image-builder/v1/compose",
-               "-s"
-               ]
+def send_buil_request(command):
     p = subprocess.Popen(command, stdout=subprocess.PIPE)
     p.wait()
     output, errors = p.communicate()
@@ -47,23 +24,13 @@ def send_build_request(token, request_fn):
             print(f"error: {json.dumps(obj)}")
         return rid
     except:
-        obj = json.loads(errors)
-        raise RuntimeError(json.dumps(obj))
+        raise RuntimeError("Error sending build request", errors)
 
 
-def wait_build(token, request_id):
-    print("Building:")
+def wait_build(command):
     last_status = ""
     while True:
         time.sleep(2)
-        command = ["curl",
-                   "-H",
-                   f'Authorization: Bearer {token}',
-                   "-H",
-                   'Content-Type: application/json',
-                   f"https://console.redhat.com/api/image-builder/v1/composes/{request_id}",
-                   "-s"
-                   ]
         obj = json.loads(subprocess.check_output(command))
         if "image_status" in obj:
             if obj["image_status"].get("status") in ['success', 'failure']:
@@ -81,50 +48,170 @@ def wait_build(token, request_id):
                     print(".", end="", flush=True)
 
 
-@contextmanager
-def make_request_file(distribution, name, architecture, packages):
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        request_file = os.path.join(tmpdirname, "request.json")
-        with open(request_file, "w") as r:
-            json.dump({
-                "distribution": distribution,
-                "image_name": name,
-                "image_requests": [
-                    {
-                      "architecture": architecture,
-                      "image_type": "guest-image",
-                      "upload_request": {
-                          "type": "aws.s3",
-                          "options": {}
-                      }
-                      }
-                ],
-                "customizations": {
-                    "packages": packages
-                }
-            }, r)
-        try:
-            yield request_file
-        except Exception as e:
-            print(e, file=sys.stderr)
-        os.remove(request_file)
+def prod_send_build_request(token, request):
+    return send_buil_request(["curl",
+                              "-H", f'Authorization: Bearer {token}',
+                              "-d", f'@{request}',
+                              "-X", "POST",
+                              "-H", 'Content-Type: application/json',
+                              "https://console.redhat.com/api/image-builder/v1/compose",
+                              "-s"
+                              ])
+
+
+def prod_wait_build(token, request_id):
+    return wait_build(["curl",
+                       "-H",
+                       f'Authorization: Bearer {token}',
+                       "-H",
+                       'Content-Type: application/json',
+                       f"https://console.redhat.com/api/image-builder/v1/composes/{request_id}",
+                       "-s"
+                       ])
+
+
+def stage_send_build_request(username, password, request):
+    return send_buil_request(["curl",
+                              "--user", f"{username}:{password}",
+                              "--proxy", "http://squid.corp.redhat.com:3128",
+                              "-d", f'@{request}',
+                              "-X", "POST",
+                              "-H", 'Content-Type: application/json',
+                              "https://console.stage.redhat.com/api/image-builder/v1/compose",
+                              "-s"
+                              ])
+
+
+def stage_wait_build(username, password, request_id):
+    return wait_build(["curl",
+                      "--user", f"{username}:{password}",
+                       "--proxy", "http://squid.corp.redhat.com:3128",
+                       "-H", 'Content-Type: application/json',
+                       f"https://console.stage.redhat.com/api/image-builder/v1/composes/{request_id}",
+                       "-s"
+                       ])
+
+
+def get_prod_image_url(offline_token, request):
+    """
+    Request a build on prod environment requires a valid offline token
+    """
+    def short_lived_token(token):
+        command = ["curl",
+                   "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token",
+                   "-d",
+                   "grant_type=refresh_token",
+                   "-d",
+                   "client_id=rhsm-api",
+                   "-d",
+                   f"refresh_token={token}",
+                   "-s"]
+        obj = json.loads(subprocess.check_output(command))
+        return obj["access_token"]
+    token = short_lived_token(offline_token)
+    # Send build request
+    request_id = prod_send_build_request(token, request)
+    if not request_id:
+        raise RuntimeError("No request id, check errors")
+
+    # wait until it's built
+    url = prod_wait_build(token, request_id)
+    if not url:
+        raise RuntimeError("No URL to download from")
+    return url
+
+
+def get_stage_image_url(username, password, request):
+    """
+    Request a build on stage environment requires a valid username and password
+    """
+    # Send build request
+    request_id = stage_send_build_request(username, password, request)
+    if not request_id:
+        raise RuntimeError("No request id, check errors")
+
+    # wait until it's built
+    url = stage_wait_build(username, password, request_id)
+    if not url:
+        raise RuntimeError("No URL to download from")
+    return url
 
 
 def get_cache_dir():
     # check if local cache exists if not create it
-    cache_dir = os.path.join(os.path.dirname(__file__),".cache")
+    cache_dir = os.path.join(os.path.dirname(__file__), ".cache")
     if not os.path.isdir(cache_dir):
         os.mkdir(cache_dir)
     return cache_dir
 
 
+@contextmanager
+def make_request_file(distribution, name, architecture, packages, stage,
+                      activation_key=None, organization=None, insights=True):
+    """
+    Yields a request file
+    """
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        request_file = os.path.join(tmpdirname, "request.json")
+        with open(request_file, "w") as r:
+            request = {
+                "distribution": distribution,
+                "image_name": name,
+                "image_requests": [
+                    {
+                        "architecture": architecture,
+                        "image_type": "guest-image",
+                        "upload_request": {
+                            "type": "aws.s3",
+                            "options": {}
+                        }
+                    }
+                ],
+                "customizations": {
+                    "packages": packages
+                },
+            }
+            serverurl = "subscription.rhsm.redhat.com"
+            baseurl = "https://cdn.redhat.com/"
+            if stage:
+                serverurl = "subscription.rhsm.stage.redhat.com"
+                baseurl = "https://cdn.stage.redhat.com/"
+            if activation_key:
+                request["customizations"]["subscription"] = {
+                    "activation-key": activation_key,
+                    "insights": insights,
+                    "organization": organization,
+                    "server-url": serverurl,
+                    "base-url": baseurl
+                }
+            json.dump(request, r)
+        try:
+            yield request_file
+        except Exception as e:
+            print(e, file=sys.stderr)
+        finally:
+            os.remove(request_file)
+
+
 def download(url, destination):
+    """
+    Downloads an url as a destination
+    """
     print("Downloading:")
     command = ["curl",
                url,
                "-o",
                destination]
     return subprocess.check_output(command)
+
+
+def get_password(args):
+    if args.password:
+        return args.password
+    elif args.password_command:
+        command = shlex.split(args.password_command)
+        return subprocess.check_output(command).decode("utf-8").replace("\n", "")
+    raise RuntimeError("no password!")
 
 
 def get_offline_token(args):
@@ -136,70 +223,115 @@ def get_offline_token(args):
 
 
 @contextmanager
-def generate_image(offline_token, name, distribution, arch, pkgs, keep,
-                   from_cache):
-    print()
-
+def generate_image(args):
     # Check if we need to return an object from the cache instead of building it
     cache_dir = get_cache_dir()
-    filename = f"{name}_{distribution}_{arch}.qcow2"
-    if from_cache and os.path.exists(os.path.join(cache_dir, filename)):
-        print("Found image in cache\n")
+    source = "stage" if args.stage else "prod"
+    filename = f"{args.name}_{args.distribution}_{args.architecture}_{source}.qcow2"
+    if args.from_cache and os.path.exists(os.path.join(cache_dir, filename)):
+        print("    Found image in cache\n")
         yield os.path.join(cache_dir, filename)
         return
-    if from_cache:
-        print("Not in cache, building\n")
 
-    token = short_lived_token(offline_token)
-    print("Generating image with parameters:\n")
-    print(f"    Image name {name}")
-    print(f"    Distribution {distribution}")
-    print(f"    Architecture {arch}")
-    print(f"    Packages {pkgs}")
-    print(f"    Keep in cache {keep}")
+    print("     Generating image with parameters:\n")
+    print(f"        Image name {args.name}")
+    print(f"        Distribution {args.distribution}")
+    print(f"        Architecture {args.architecture}")
+    print(f"        Packages {args.packages}")
+    print(f"        Keep in cache {args.keep}")
+    print(f"        Source {source}")
+    print(f"        Activation key {args.activation_key}")
+    print(f"        Organization key {args.organization}")
     print()
+    print("Building:")
 
-    # Send build request
-    request_id = None
-    with make_request_file(distribution, name, arch, pkgs) as request_fn:
-        request_id = send_build_request(token, request_fn)
-    if not request_id:
-        raise RuntimeError("No request id, check errors")
-
-    # wait until it's built
-    url = wait_build(token, request_id)
+    # Generate the image
+    url = None
+    with make_request_file(args.distribution, args.name,
+                           args.architecture, args.packages,
+                           args.stage, args.activation_key,
+                           args.organization) as request:
+        if args.stage:
+            url = get_stage_image_url(
+                args.username,
+                get_password(args),
+                request
+            )
+        else:
+            url = get_prod_image_url(
+                get_offline_token(args),
+                request
+            )
     if not url:
-        raise RuntimeError("No URL to download from")
+        raise RuntimeError("no URL")
 
     # Download the image, either in cache or in a tmp folder
-    with tempfile.TemporaryDirectory() as dl_dir:
-        if keep:
-            dl_dir = cache_dir
-        destination = os.path.join(dl_dir, filename)
-        try:
-            download(url, destination)
-            yield destination
-        except Exception as e:
-            print(e)
-        # clean the destination if it was temporary
-        if not keep:
+    if args.keep:
+        dl_dir = cache_dir
+    else:
+        dl_dir = tempfile.mkdtemp()
+    destination = os.path.join(dl_dir, filename)
+
+    try:
+        download(url, destination)
+        yield destination
+    except Exception as e:
+        raise e
+    finally:
+        if not args.keep:
+            # clean the temporary dir
             os.remove(destination)
+            os.rmdir(dl_dir)
 
 
 def main():
-    gen_parser = argparse.ArgumentParser(description=
-                                         'Generates, downloads and runs '
+    gen_parser = argparse.ArgumentParser(description='Generates, downloads and runs '
                                          'an image to run')
-    group = gen_parser.add_mutually_exclusive_group(required=True)
+
+    # Authentification options
+    gen_parser.add_argument("--stage",
+                            default=False,
+                            action="store_true",
+                            help="Runs against stage environment"
+                            )
+    # Needs an offline token only if we're on prod
+    group = gen_parser.add_mutually_exclusive_group(
+        required=not "--stage" in sys.argv
+    )
     group.add_argument("--offline-token",
                        type=str,
                        help="Offline token provided by https://access.redhat.com/management/api"
+                       " mandatory for prod"
                        )
     group.add_argument("--offline-token-command",
                        default="pass offline_token",
                        type=str,
                        help="Command to retrieve the offline token"
+                       " mandatory for prod"
                        )
+    # Otherwise, needs ethel user and password
+    gen_parser.add_argument("--username",
+                            required="--stage" in sys.argv,
+                            type=str,
+                            help="Ethel username"
+                            " mandatory for stage"
+                            )
+    group = gen_parser.add_mutually_exclusive_group(
+        required="--stage" in sys.argv
+    )
+    group.add_argument("--password",
+                       type=str,
+                       help="Ethel password"
+                       " mandatory for stage"
+                       )
+    group.add_argument("--password-command",
+                       default="pass ethel_password",
+                       type=str,
+                       help="Command to retrieve the ethel password"
+                       " mandatory for stage"
+                       )
+
+    # Build options
     gen_parser.add_argument("--name",
                             required=True,
                             type=str,
@@ -236,11 +368,25 @@ def main():
                             help="The architecture to generate"
                             )
     gen_parser.add_argument("--packages",
-                            required=True,
                             nargs='+',
                             type=str,
+                            default=[],
                             help="The packages to install"
                             )
+    gen_parser.add_argument("--activation-key",
+                            type=str,
+                            required="--organization" in sys.argv,
+                            help="The activation key for subscription manager."
+                            " Needs to be used with --organization"
+                            )
+    gen_parser.add_argument("--organization",
+                            required="--activation-key" in sys.argv,
+                            type=int,
+                            help="The organization id for subscription manager."
+                            " Needs to be used with --activation_key"
+                            )
+
+    # Cache options
     gen_parser.add_argument("--keep",
                             default=False,
                             action="store_true",
@@ -249,6 +395,8 @@ def main():
                             default=False,
                             action="store_true",
                             help="Try to load the image from cache instead of building it")
+
+    # VM extra options
     gen_parser.add_argument("--vm-args",
                             type=str,
                             default="",
@@ -257,19 +405,14 @@ def main():
                             )
 
     args = gen_parser.parse_args()
-    with generate_image(
-            get_offline_token(args),
-            args.name,
-            args.distribution,
-            args.architecture,
-            args.packages,
-            args.keep,
-            args.from_cache) as image:
 
-
+    print("Generation:")
+    with generate_image(args) as image:
         print("\nRunning:\n")
-        print(" ".join([os.path.join(os.path.dirname(__file__),"vm")]+shlex.split(args.vm_args)+[image, args.architecture]))
-        subprocess.run([os.path.join(os.path.dirname(__file__),"vm")]+shlex.split(args.vm_args)+[image, args.architecture])
+        print(" ".join([os.path.join(os.path.dirname(__file__), "vm")] +
+              shlex.split(args.vm_args)+[image, args.architecture]))
+        subprocess.run([os.path.join(os.path.dirname(__file__), "vm")] +
+                       shlex.split(args.vm_args)+[image, args.architecture])
     return 0
 
 
