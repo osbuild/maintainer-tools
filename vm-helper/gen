@@ -8,6 +8,7 @@ import sys
 import json
 import tempfile
 import time
+from datetime import datetime
 from contextlib import contextmanager
 
 RESET = "\033[0m"
@@ -17,6 +18,8 @@ BOLD = "\033[1m"
 class BuildError(RuntimeError):
     pass
 class BuildRequestError(BuildError):
+    pass
+class CacheError(BuildError):
     pass
 
 
@@ -159,7 +162,7 @@ def get_stage_image_url(username, password, request):
 
 def get_cache_dir():
     # check if local cache exists if not create it
-    cache_dir = os.path.join(os.path.dirname(__file__), ".cache")
+    cache_dir = os.path.join(os.path.expanduser("~/.cache"), "vm-help")
     if not os.path.isdir(cache_dir):
         os.mkdir(cache_dir)
     return cache_dir
@@ -248,22 +251,38 @@ def generate_image(args):
     cache_dir = get_cache_dir()
     source = "stage" if args.stage else "prod"
     filename = f"{args.name}_{args.distribution}_{args.architecture}_{source}.qcow2"
-    if args.from_cache and os.path.exists(os.path.join(cache_dir, filename)):
-        print("    Found image in cache\n")
-        yield os.path.join(cache_dir, filename)
-        return
 
-    print("     Generating image with parameters:\n")
+    # Check if image is in cache
+    cache_path = os.path.join(cache_dir, filename)
+    if not args.no_from_cache and os.path.exists(cache_path):
+        if not args.batch:
+            dt_object = datetime.fromtimestamp(os.path.getmtime(cache_path))
+            v = input(f"    Found entry in cache [created on {dt_object}] L(Load) r(Regenerate):")
+            if v == "" or v.upper() == "L":
+                yield cache_path
+                return
+            elif v.upper() == "R":
+                os.remove(cache_path)
+            else:
+                raise CacheError("Invalid answer")
+        else:
+            input("    Found image in cache")
+            yield cache_path
+            return
+
+    print()
+    print("Building:")
+    print()
+    print("    Generating image with parameters:\n")
     print(f"        Image name {args.name}")
     print(f"        Distribution {args.distribution}")
     print(f"        Architecture {args.architecture}")
     print(f"        Packages {args.packages}")
-    print(f"        Keep in cache {args.keep}")
+    print(f"        Keep in cache {not args.no_keep}")
     print(f"        Source {source}")
     print(f"        Activation key {args.activation_key}")
     print(f"        Organization key {args.organization}")
     print()
-    print("Building:")
 
     # Generate the image
     url = None
@@ -284,7 +303,7 @@ def generate_image(args):
             )
 
     # Download the image, either in cache or in a tmp folder
-    if args.keep:
+    if not args.no_keep:
         dl_dir = cache_dir
     else:
         dl_dir = tempfile.mkdtemp()
@@ -296,7 +315,7 @@ def generate_image(args):
     except Exception as e:
         raise e
     finally:
-        if not args.keep:
+        if args.no_keep:
             # clean the temporary dir
             os.remove(destination)
             os.rmdir(dl_dir)
@@ -406,14 +425,18 @@ def main():
                             )
 
     # Cache options
-    gen_parser.add_argument("--keep",
+    gen_parser.add_argument("--no-keep",
                             default=False,
                             action="store_true",
-                            help="keep the image in cache after download")
-    gen_parser.add_argument("--from-cache",
+                            help="Don't keep the image in cache after download")
+    gen_parser.add_argument("--no-from-cache",
                             default=False,
                             action="store_true",
-                            help="Try to load the image from cache instead of building it")
+                            help="Don't load from the cache instead build it")
+    gen_parser.add_argument("--batch",
+                            default=False,
+                            action="store_true",
+                            help="Don't ask questions, just load from cache")
 
     # VM extra options
     gen_parser.add_argument("--vm-args",
