@@ -8,6 +8,7 @@ import sys
 import json
 import tempfile
 import time
+import pathlib
 from datetime import datetime
 from contextlib import contextmanager
 
@@ -17,8 +18,12 @@ BOLD = "\033[1m"
 
 class BuildError(RuntimeError):
     pass
+
+
 class BuildRequestError(BuildError):
     pass
+
+
 class CacheError(BuildError):
     pass
 
@@ -162,7 +167,7 @@ def get_stage_image_url(username, password, request):
 
 def get_cache_dir():
     # check if local cache exists if not create it
-    cache_dir = os.path.join(os.path.expanduser("~/.cache"), "vm-help")
+    cache_dir = os.path.join(os.path.expanduser("~/.cache"), "vm-helper")
     if not os.path.isdir(cache_dir):
         os.mkdir(cache_dir)
     return cache_dir
@@ -245,19 +250,43 @@ def get_offline_token(args):
         return subprocess.check_output(command).decode("utf-8").replace("\n", "")
 
 
+def create_metadata(request, path, filename, args):
+    with open(request, "r") as in_:
+        req = json.load(in_)
+        with open(path, "w") as out:
+            json.dump({
+                "request": req,
+                "filename": filename,
+                "platform": args.command,
+                "date": datetime.now().timestamp()
+            }, out)
+
+def print_cache_entry(entry, indent=4):
+    content = (f"filename:\t{entry['filename']}:\n"
+    f"created at:\t{datetime.fromtimestamp(entry['date'])}\n"
+    f"platform:\t{entry['platform']}\n"
+    f"request:\t{json.dumps(entry['request'], indent=4)}")
+    for line in content.split("\n"):
+        print(" "*indent, line)
+
 @contextmanager
 def generate_image(args):
     # Check if we need to return an object from the cache instead of building it
     cache_dir = get_cache_dir()
-    source = "stage" if args.stage else "prod"
+    source = args.command
+    filemetadata = f"{args.name}_{args.distribution}_{args.architecture}_{source}.json"
     filename = f"{args.name}_{args.distribution}_{args.architecture}_{source}.qcow2"
 
     # Check if image is in cache
     cache_path = os.path.join(cache_dir, filename)
     if not args.no_from_cache and os.path.exists(cache_path):
         if not args.batch:
-            dt_object = datetime.fromtimestamp(os.path.getmtime(cache_path))
-            v = input(f"    Found entry in cache [created on {dt_object}] L(Load) r(Regenerate):")
+            print("    Found entry in cache:")
+            with open(os.path.join(get_cache_dir(), filemetadata), 'r') as f:
+                print_cache_entry(json.load(f), 8)
+            v = input(f"    L(Load) r(Regenerate) a(Abort):")
+            if v == "a":
+                sys.exit(0)
             if v == "" or v.upper() == "L":
                 yield cache_path
                 return
@@ -284,13 +313,19 @@ def generate_image(args):
     print(f"        Organization key {args.organization}")
     print()
 
+    # Download the image, either in cache or in a tmp folder
+    if not args.no_keep:
+        dl_dir = cache_dir
+    else:
+        dl_dir = tempfile.mkdtemp()
+
     # Generate the image
     url = None
     with make_request_file(args.distribution, args.name,
                            args.architecture, args.packages,
-                           args.stage, args.activation_key,
+                           args.command == "stage", args.activation_key,
                            args.organization) as request:
-        if args.stage:
+        if args.command == "stage":
             url = get_stage_image_url(
                 args.username,
                 get_password(args),
@@ -302,80 +337,38 @@ def generate_image(args):
                 request
             )
 
-    # Download the image, either in cache or in a tmp folder
-    if not args.no_keep:
-        dl_dir = cache_dir
-    else:
-        dl_dir = tempfile.mkdtemp()
-    destination = os.path.join(dl_dir, filename)
-
-    try:
-        download(url, destination)
-        yield destination
-    except Exception as e:
-        raise e
-    finally:
-        if args.no_keep:
-            # clean the temporary dir
-            os.remove(destination)
-            os.rmdir(dl_dir)
+        destination = os.path.join(dl_dir, filename)
+        try:
+            download(url, destination)
+            if not args.no_keep:
+                create_metadata(request, os.path.join(dl_dir, filemetadata),
+                                filename, args)
+            yield destination
+        except Exception as e:
+            raise e
+        finally:
+            if args.no_keep:
+                # clean the temporary dir
+                os.remove(destination)
+                os.rmdir(dl_dir)
 
 
 def main():
     gen_parser = argparse.ArgumentParser(description='Generates, downloads and runs '
                                          'an image to run')
 
-    # Authentification options
-    gen_parser.add_argument("--stage",
-                            default=False,
-                            action="store_true",
-                            help="Runs against stage environment"
-                            )
-    # Needs an offline token only if we're on prod
-    group = gen_parser.add_mutually_exclusive_group(
-        required=not "--stage" in sys.argv
-    )
-    group.add_argument("--offline-token",
-                       type=str,
-                       help="Offline token provided by https://access.redhat.com/management/api"
-                       " mandatory for prod"
-                       )
-    group.add_argument("--offline-token-command",
-                       default="pass offline_token",
-                       type=str,
-                       help="Command to retrieve the offline token"
-                       " mandatory for prod"
-                       )
-    # Otherwise, needs ethel user and password
-    gen_parser.add_argument("--username",
-                            required="--stage" in sys.argv,
-                            type=str,
-                            help="Ethel username"
-                            " mandatory for stage"
-                            )
-    group = gen_parser.add_mutually_exclusive_group(
-        required="--stage" in sys.argv
-    )
-    group.add_argument("--password",
-                       type=str,
-                       help="Ethel password"
-                       " mandatory for stage"
-                       )
-    group.add_argument("--password-command",
-                       default="pass ethel_password",
-                       type=str,
-                       help="Command to retrieve the ethel password"
-                       " mandatory for stage"
-                       )
-
     # Build options
+    build_mode = False
+    if "stage" in sys.argv or "prod" in sys.argv:
+        build_mode = True
+
     gen_parser.add_argument("--name",
-                            required=True,
+                            required=build_mode,
                             type=str,
                             help="Image name"
                             )
     gen_parser.add_argument("--distribution",
-                            required=True,
+                            required=build_mode,
                             type=str,
                             choices=[
                                 "centos-8",
@@ -396,7 +389,7 @@ def main():
                             help="The distribution to generate"
                             )
     gen_parser.add_argument("--architecture",
-                            required=True,
+                            required=build_mode,
                             type=str,
                             choices=[
                                 "x86_64",
@@ -438,6 +431,42 @@ def main():
                             action="store_true",
                             help="Don't ask questions, just load from cache")
 
+    subparsers = gen_parser.add_subparsers(title="command",
+                                           required=True,
+                                           dest='command',
+                                           help='Command to execute')
+
+    stage_parser = subparsers.add_parser("stage", help="generates on stage")
+    prod_parser = subparsers.add_parser("prod", help="generates on prod")
+    list_parser = subparsers.add_parser("list", help="list cache content")
+    # Needs an offline token only if we're on prod
+    group = prod_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--offline-token",
+                       type=str,
+                       help="Offline token provided by https://access.redhat.com/management/api"
+                       )
+    group.add_argument("--offline-token-command",
+                       default="pass offline_token",
+                       type=str,
+                       help="Command to retrieve the offline token"
+                       )
+    # Otherwise, needs ethel user and password
+    stage_parser.add_argument("--username",
+                              required="--stage" in sys.argv,
+                              type=str,
+                              help="Ethel username"
+                              )
+    group = stage_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--password",
+                       type=str,
+                       help="Ethel password"
+                       )
+    group.add_argument("--password-command",
+                       default="pass ethel_password",
+                       type=str,
+                       help="Command to retrieve the ethel password"
+                       )
+
     # VM extra options
     gen_parser.add_argument("--vm-args",
                             type=str,
@@ -447,6 +476,16 @@ def main():
                             )
 
     args = gen_parser.parse_args()
+
+    if args.command == "list":
+        print("Cache content:")
+        for i, file in enumerate(os.listdir(get_cache_dir())):
+            if pathlib.Path(file).suffix == ".json":
+                with open(os.path.join(get_cache_dir(), file), 'r') as f:
+                    entry = json.load(f)
+                    print(f"Entry #{i} ---")
+                    print_cache_entry(entry)
+        return
 
     print("Generation:")
     try:
