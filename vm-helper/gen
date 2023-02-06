@@ -447,6 +447,12 @@ def main():
     stage_parser = subparsers.add_parser("stage", help="generates on stage")
     prod_parser = subparsers.add_parser("prod", help="generates on prod")
     list_parser = subparsers.add_parser("list", help="list cache content")
+
+    list_parser.add_argument("--clean",
+                            default=False,
+                            action="store_true",
+                            help="Propose to keep or delete cache entries")
+
     # Needs an offline token only if we're on prod
     group = prod_parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--offline-token",
@@ -489,10 +495,18 @@ def main():
         print("Cache content:")
         for i, file in enumerate(os.listdir(get_cache_dir())):
             if pathlib.Path(file).suffix == ".json":
+                imgname = ""
                 with open(os.path.join(get_cache_dir(), file), 'r') as f:
                     entry = json.load(f)
+                    imgname = entry["filename"]
                     print(f"Entry #{i} ---")
                     print_cache_entry(entry)
+                if args.clean:
+                    v = input("K(Keep) d(Delete):")
+                    if v.upper() == "D":
+                        os.remove(os.path.join(get_cache_dir(), imgname))
+                        os.remove(os.path.join(get_cache_dir(), file))
+
         return
 
     print("Generation:")

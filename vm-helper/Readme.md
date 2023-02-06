@@ -34,35 +34,52 @@ https://access.redhat.com/management/api
 
 ## options
 
-### token
-
-* `--offline-token` provide the offline token on the command line, this is to be
-  avoided, because you'll leak your token in your bashrc.
-* `--offline-token-command` is a command to invoke in order to retrieve the
-  token. On my laptop it's set to `pass offline_token`. https://wiki.archlinux.org/title/Pass
-  is a nice tool, and I advice you find something that has an equivalent
-  behavior, which is to return the token when prompted without any other values.
-
 ### image
 
 * `--distribution` the distribution you want
 * `--architecture` same for the architecture
 * `--packages` a list of packages, like 'git-all' or 'vim-common'
+* `--activation-key` for rhel subscription
+* `--organization` for rhel subscription
 
-### cache
+### Positional argument: command to run
+
+#### Stage
+
+Positional argument `stage` builds the image on stage. You need to provide
+credentials to have access to stage and to be logged onto the VPN.
+
+* `--username` is your ethel username
+* `--password` is your ethel password
+* `--password-command` is a command to invoke in order to retrieve the
+  password. On my laptop it's set to `pass ethel_password`. https://wiki.archlinux.org/title/Pass
+  is a nice tool, and I advice you find something that has an equivalent
+  behavior, which is to return the token when prompted without any other values.
+
+#### Prod
+
+Positional argument `prod` builds the image on prod, you need to provide an
+offline token to have access to prod.
+
+* `--offline-token` provide the offline token on the command line, this is to be
+  avoided, because you'll leak your token in your bashrc.
+* `--offline-token-command` is a command to invoke in order to retrieve the
+  token. On my laptop it's set to `pass offline_token`.
+
+#### cache
 
 The tool allow you to spawn a one time only disposable VM (default behavior) or
 to keep your builds in the cache to use them later (more economical approach).
 
-To use the cache, use the `--keep` option to make sure your image will get
-stored under a `.cache` folder.
-To reuse a previously built image, use the `--from-cache` option. Then the tool
-will load it if found. If not, it'll trigger a built.
+Objects in the cache are stored with a JSON file alongside them containing some
+metadata. The date of creation, the request, the platform and the image name.
 
-Be aware that if you trigger a build with `from-cache` it'll be saved in the
-cache only if you set `--keep`… (Sorry for that!)
+##### List
 
-Objects in the cache are named `$name_$distribution_$architecture.qcow2`
+Positional argument `list` lists the entries in the cache. 
+
+* `--clean` can be used to interactively be prompted to delete or keep a given
+  cache entry.
 
 ### vm args
 
@@ -71,7 +88,11 @@ Objects in the cache are named `$name_$distribution_$architecture.qcow2`
 
 # Example
 
-`./gen --name img_thomas --distribution rhel-90 --architecture x86_64 --packages git-all vim-common --offline-token-command "pass offline_token" --vm-args "--memory 1024"`
+```
+./gen --name some_name --distribution rhel-91 --architecture x86_64 --packages
+git-all vim-common --activation-key some_activation_key --organization 11224477
+--vm-args "--memory 1014" stage --username some_login --password somepassword
+```
 
-This will spawn a disposable image.
+This will build, store on cache and spawn the image.
 You can the log onto it with `ssh localhost -p2222`
