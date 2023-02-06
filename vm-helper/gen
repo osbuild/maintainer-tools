@@ -59,9 +59,17 @@ def send_buil_request(command) -> str:
 
 def wait_build(command):
     last_status = ""
+    failed_attempts = 0
     while True:
         time.sleep(2)
-        obj = json.loads(subprocess.check_output(command))
+        try:
+            obj = json.loads(subprocess.check_output(command))
+        except subprocess.CalledProcessError as e:
+            failed_attempts+=1
+            if failed_attempts < 10:
+                continue
+            else:
+                raise BuildError(f"Unknown {e}")
         if "image_status" in obj:
             if "error" in obj["image_status"]:
                 raise BuildError(f"Build failed!\n{json.dumps(obj,indent=4)}")
