@@ -13,7 +13,14 @@ from contextlib import contextmanager
 RESET = "\033[0m"
 BOLD = "\033[1m"
 
-def send_buil_request(command):
+
+class BuildError(RuntimeError):
+    pass
+class BuildRequestError(BuildError):
+    pass
+
+
+def send_buil_request(command) -> str:
     p = subprocess.Popen(command, stdout=subprocess.PIPE)
     p.wait()
     output, errors = p.communicate()
@@ -21,10 +28,25 @@ def send_buil_request(command):
         obj = json.loads(output)
         rid = obj["id"]
         if not rid:
-            print(f"error: {json.dumps(obj)}")
+            raise BuildRequestError("Missing request id in answer")
         return rid
     except:
-        raise RuntimeError("Error sending build request", errors)
+        try:
+            raise BuildRequestError(f"Invalid request: {json.dumps(json.loads(output), indent=4)}")
+        except BuildRequestError as e:
+            raise e
+        except:
+            if output:
+                print(output, file=sys.stderr)
+        try:
+            raise BuildRequestError(f"Error: {json.dumps(json.loads(errors), indent=4)}")
+        except BuildRequestError as e:
+            raise e
+        except:
+            if errors:
+                print(errors, file=sys.stderr)
+        raise BuildRequestError(f"Error sending build request, check user/"
+                                "password, token or network connectivity or vpn..\n")
 
 
 def wait_build(command):
@@ -33,13 +55,15 @@ def wait_build(command):
         time.sleep(2)
         obj = json.loads(subprocess.check_output(command))
         if "image_status" in obj:
+            if "error" in obj["image_status"]:
+                raise BuildError(f"Build failed!\n{json.dumps(obj,indent=4)}")
             if obj["image_status"].get("status") in ['success', 'failure']:
                 if "upload_status" in obj["image_status"]:
                     print("\n")
                     if obj["image_status"]["upload_status"].get("status") == "success":
                         return obj["image_status"]["upload_status"]["options"]["url"]
                     else:
-                        raise RuntimeError(f"failed to build image {json.dumps(obj)}")
+                        raise BuildError(f"Build failed!\n{json.dumps(obj,indent=4)}")
             else:
                 if obj["image_status"].get("status") != last_status:
                     last_status = obj["image_status"].get("status")
@@ -111,13 +135,9 @@ def get_prod_image_url(offline_token, request):
     token = short_lived_token(offline_token)
     # Send build request
     request_id = prod_send_build_request(token, request)
-    if not request_id:
-        raise RuntimeError("No request id, check errors")
 
     # wait until it's built
     url = prod_wait_build(token, request_id)
-    if not url:
-        raise RuntimeError("No URL to download from")
     return url
 
 
@@ -188,7 +208,7 @@ def make_request_file(distribution, name, architecture, packages, stage,
         try:
             yield request_file
         except Exception as e:
-            print(e, file=sys.stderr)
+            raise e
         finally:
             os.remove(request_file)
 
@@ -262,8 +282,6 @@ def generate_image(args):
                 get_offline_token(args),
                 request
             )
-    if not url:
-        raise RuntimeError("no URL")
 
     # Download the image, either in cache or in a tmp folder
     if args.keep:
@@ -354,6 +372,7 @@ def main():
                                 "rhel-88",
                                 "rhel-90",
                                 "rhel-91",
+                                "rhel-92",
                             ],
                             help="The distribution to generate"
                             )
@@ -407,12 +426,17 @@ def main():
     args = gen_parser.parse_args()
 
     print("Generation:")
-    with generate_image(args) as image:
-        print("\nRunning:\n")
-        print(" ".join([os.path.join(os.path.dirname(__file__), "vm")] +
-              shlex.split(args.vm_args)+[image, args.architecture]))
-        subprocess.run([os.path.join(os.path.dirname(__file__), "vm")] +
-                       shlex.split(args.vm_args)+[image, args.architecture])
+    try:
+        with generate_image(args) as image:
+            print("\nRunning:\n")
+            subprocess.run(
+                [os.path.join(os.path.dirname(__file__), "vm")] +
+                shlex.split(args.vm_args) +
+                [image, args.architecture]
+            )
+    except BuildError as e:
+        print(e)
+        return 1
     return 0
 
 
