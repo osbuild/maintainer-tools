@@ -3,6 +3,8 @@ name: "Verify PR best practices"
 on:
   pull_request_target:
     branches: [ main ]
+  issue_comment:
+    types: [ created ]
 
 jobs:
   pr-best-practices:
