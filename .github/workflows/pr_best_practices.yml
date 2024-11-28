@@ -12,3 +12,4 @@ jobs:
         uses: osbuild/pr-best-practices@staging
         with:
           token: ${{ secrets.SCHUTZBOT_GITHUB_ACCESS_TOKEN }}
+          jira_token: ${{ secrets.IMAGEBUILDER_BOT_JIRA_TOKEN }}
