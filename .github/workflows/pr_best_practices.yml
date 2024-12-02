@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: PR best practice check
-        uses: osbuild/pr-best-practices@staging
+        uses: osbuild/pr-best-practices@main
         with:
           token: ${{ secrets.SCHUTZBOT_GITHUB_ACCESS_TOKEN }}
           jira_token: ${{ secrets.IMAGEBUILDER_BOT_JIRA_TOKEN }}
