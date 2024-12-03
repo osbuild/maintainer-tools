@@ -3,6 +3,7 @@ name: "Verify PR best practices"
 on:
   pull_request_target:
     branches: [ main ]
+    types: [opened, synchronize, reopened, edited]
   issue_comment:
     types: [ created ]
 
